@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Wrench, 
   ClipboardList, 
@@ -19,6 +19,18 @@ export default function TechnicianWorkbench({
 }) {
   const activeROs = appointments.filter(a => a.status !== 'scheduled' && a.status !== 'ready');
   const [selectedRoId, setSelectedRoId] = useState(activeROs[0]?.id || '');
+
+  // Auto-sync selected RO when activeROs list changes
+  useEffect(() => {
+    if (activeROs.length > 0) {
+      const exists = activeROs.some(ro => ro.id === selectedRoId);
+      if (!selectedRoId || !exists) {
+        setSelectedRoId(activeROs[0].id);
+      }
+    } else if (selectedRoId !== '') {
+      setSelectedRoId('');
+    }
+  }, [activeROs, selectedRoId]);
   
   // Active Appointment
   const app = appointments.find(a => a.id === selectedRoId);

@@ -33,6 +33,22 @@ export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCustAppId, setSelectedCustAppId] = useState('');
+
+  // Default/sync selected customer appointment when appointments list updates
+  useEffect(() => {
+    if (appointments.length > 0) {
+      const appExists = appointments.some(a => a.id === selectedCustAppId);
+      if (!selectedCustAppId || !appExists) {
+        const defaultApp = appointments.find(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
+        if (defaultApp) {
+          setSelectedCustAppId(defaultApp.id);
+        }
+      }
+    } else {
+      setSelectedCustAppId('');
+    }
+  }, [appointments, selectedCustAppId]);
 
   // Helper to seed Firestore with default data if empty
   const seedFirestoreIfEmpty = async () => {
@@ -322,7 +338,7 @@ export default function App() {
       const id = `ro-${Date.now()}`;
       const formattedApp = {
         id: id,
-        customerName: 'John Doe',
+        customerName: newApp.customerName || 'John Doe',
         vehicle: newApp.vehicle,
         service: newApp.service,
         date: newApp.date,
@@ -335,6 +351,8 @@ export default function App() {
         qcSignature: ''
       };
       await setDoc(doc(db, "appointments", id), formattedApp);
+      // Auto-select this newly booked appointment so the customer sees it
+      setSelectedCustAppId(id);
     } catch (err) {
       console.error("Firestore ScheduleAppointment error:", err);
     }
@@ -369,9 +387,13 @@ export default function App() {
 
     switch (activeRole) {
       case 'customer':
+        const customerApps = appointments.filter(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
+        const currentCustApp = appointments.find(a => a.id === selectedCustAppId) || customerApps[0];
         return (
           <CustomerPortal 
-            appointment={appointments.find(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe')} 
+            appointment={currentCustApp} 
+            allCustomerAppointments={customerApps}
+            onSelectAppointment={setSelectedCustAppId}
             onApproveRecommendation={handleApproveRecommendation}
             onDeclineRecommendation={handleDeclineRecommendation}
             onScheduleAppointment={handleScheduleAppointment}

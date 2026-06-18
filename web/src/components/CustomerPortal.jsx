@@ -18,6 +18,8 @@ import {
 
 export default function CustomerPortal({ 
   appointment, 
+  allCustomerAppointments = [],
+  onSelectAppointment,
   onApproveRecommendation, 
   onDeclineRecommendation,
   onScheduleAppointment
@@ -72,11 +74,15 @@ export default function CustomerPortal({
     e.preventDefault();
     if (!vehicleModel || !selectedDate || !selectedTime) return;
     onScheduleAppointment({
+      customerName: appointment ? appointment.customerName : 'John Doe',
       vehicle: vehicleModel,
       service: selectedService,
       date: selectedDate,
       time: selectedTime
     });
+    setVehicleModel('');
+    setSelectedDate('');
+    setSelectedTime('');
     setActiveTab('status');
   };
 
@@ -126,7 +132,22 @@ export default function CustomerPortal({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="text-xs uppercase tracking-widest font-mono text-rose-500">Live Service Passport</span>
-          <h1 className="text-2xl font-bold mt-1">{appointment.customerName}'s Vehicle Portal</h1>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <h1 className="text-2xl font-bold">{appointment.customerName}'s Vehicle Portal</h1>
+            {allCustomerAppointments.length > 1 && (
+              <select
+                value={appointment.id}
+                onChange={(e) => onSelectAppointment(e.target.value)}
+                className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+              >
+                {allCustomerAppointments.map(app => (
+                  <option key={app.id} value={app.id}>
+                    {app.vehicle} ({app.status.replace('_', ' ')})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
           <button 

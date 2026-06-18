@@ -48,7 +48,11 @@ export default function App() {
     };
   }, []);
 
-  const activeRo = appointments.find(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
+  const activeRo = (() => {
+    const customerApps = appointments.filter(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
+    const active = customerApps.find(a => a.status !== 'ready');
+    return active || customerApps[0];
+  })();
 
   const handleApprove = async (recId) => {
     try {
