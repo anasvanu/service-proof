@@ -92,7 +92,7 @@ export default function TrackerScreen({ appointment, onNavigate }) {
       <View style={styles.card}>
         <View style={styles.row}>
           <Text style={styles.summaryLabel}>Estimate Value:</Text>
-          <Text style={styles.summaryValue}>${appointment.estimatedCost}</Text>
+          <Text style={styles.summaryValue}>₹{appointment.estimatedCost}</Text>
         </View>
         
         {appointment.recommendations && appointment.recommendations.filter(r => r.status === 'pending').length > 0 && (

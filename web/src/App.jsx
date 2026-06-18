@@ -42,12 +42,12 @@ export default function App() {
         {
           id: "ro-1",
           customerName: "John Doe",
-          vehicle: "Tesla Model Y (2023)",
+          vehicle: "Maruti Suzuki Swift (2022)",
           service: "Standard Service Package",
           date: "2026-06-19",
           time: "11:30 AM",
           status: "scheduled",
-          estimatedCost: 120,
+          estimatedCost: 3500,
           inspection: null,
           recommendations: [],
           techSignature: "",
@@ -56,12 +56,12 @@ export default function App() {
         {
           id: "ro-2",
           customerName: "Sarah Jenkins",
-          vehicle: "Ford F-150 Lightning (2024)",
+          vehicle: "Mahindra XUV700 (2023)",
           service: "Advanced Safety Inspection",
           date: "2026-06-18",
           time: "09:00 AM",
           status: "inspecting",
-          estimatedCost: 240,
+          estimatedCost: 7500,
           techSignature: "Tech #402",
           qcSignature: "",
           inspection: {
@@ -75,7 +75,7 @@ export default function App() {
               id: "rec-1",
               service: "Front Brake Pad Replacement",
               details: "Replace front disc brake pads to restore full stopping power before metal-on-metal wear.",
-              cost: 299,
+              cost: 8500,
               proofUrl: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=400&q=80",
               status: "pending",
               category: "repair",
@@ -85,7 +85,7 @@ export default function App() {
               id: "rec-2",
               service: "Front Right Tire Replacement",
               details: "Treads are critically low on the front right tire. Dangerous for wet conditions.",
-              cost: 180,
+              cost: 6500,
               proofUrl: "https://images.unsplash.com/photo-1191010313-0ea10c4f1cfa?auto=format&fit=crop&w=400&q=80",
               status: "pending",
               category: "repair",
@@ -95,7 +95,7 @@ export default function App() {
               id: "rec-3",
               service: "Premium AC Sanitization (VAS)",
               details: "Sanitize internal HVAC ducts to remove cabin odors and bacteria.",
-              cost: 89,
+              cost: 2500,
               proofUrl: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=400&q=80",
               status: "pending",
               category: "vas",
@@ -106,7 +106,7 @@ export default function App() {
       ];
 
       const defaultMsgs = [
-        { sender: "Advisor", recipient: "Sarah Jenkins", text: "Hi Sarah, your F-150 is in the bay. Technician is performing the Multi-Point Inspection now.", timestamp: "2026-06-18T09:05:00.000Z" },
+        { sender: "Advisor", recipient: "Sarah Jenkins", text: "Hi Sarah, your XUV700 is in the bay. Technician is performing the Multi-Point Inspection now.", timestamp: "2026-06-18T09:05:00.000Z" },
         { sender: "Sarah Jenkins", recipient: "Advisor", text: "Sounds good! Let me know what you find.", timestamp: "2026-06-18T09:07:00.000Z" }
       ];
 
@@ -205,7 +205,7 @@ export default function App() {
       const targetApp = appointments.find(a => a.id === id);
       if (!targetApp) return;
 
-      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const baseCost = targetApp.service.includes('Advanced') ? 7500 : targetApp.service.includes('Braking') ? 12500 : 3500;
       const recommendationsCost = recommendations.reduce((acc, r) => acc + r.cost, 0);
 
       await setDoc(doc(db, "appointments", id), {
@@ -265,7 +265,7 @@ export default function App() {
         return r;
       });
 
-      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const baseCost = targetApp.service.includes('Advanced') ? 7500 : targetApp.service.includes('Braking') ? 12500 : 3500;
       const approvedRecsCost = updatedRecs
         .filter(r => r.status === 'approved')
         .reduce((acc, r) => acc + r.cost, 0);
@@ -328,7 +328,7 @@ export default function App() {
         date: newApp.date,
         time: newApp.time,
         status: 'scheduled',
-        estimatedCost: newApp.service.includes('Advanced') ? 240 : newApp.service.includes('Braking') ? 450 : 120,
+        estimatedCost: newApp.service.includes('Advanced') ? 7500 : newApp.service.includes('Braking') ? 12500 : 3500,
         inspection: null,
         recommendations: [],
         techSignature: '',

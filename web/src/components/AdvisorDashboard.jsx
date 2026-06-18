@@ -228,7 +228,7 @@ export default function AdvisorDashboard({
                             )}
                           </td>
                           <td className="py-3.5 text-right font-mono font-bold text-rose-500">
-                            ${app.estimatedCost}
+                            ₹{app.estimatedCost}
                           </td>
                         </tr>
                       ))}
@@ -319,7 +319,7 @@ export default function AdvisorDashboard({
                         <h4 className="font-bold text-base">{app.customerName}</h4>
                         <span className="text-xs text-slate-400">{app.vehicle} • {app.service}</span>
                       </div>
-                      <span className="text-xs font-bold text-rose-500 font-mono">${app.estimatedCost}</span>
+                      <span className="text-xs font-bold text-rose-500 font-mono">₹{app.estimatedCost}</span>
                     </div>
 
                     {/* Tech details */}

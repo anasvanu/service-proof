@@ -126,7 +126,7 @@ export default function CustomerPortal({
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="text-xs uppercase tracking-widest font-mono text-rose-500">Live Service Passport</span>
-          <h1 className="text-2xl font-bold mt-1">{appointment.customerName}'s Tesla Portal</h1>
+          <h1 className="text-2xl font-bold mt-1">{appointment.customerName}'s Vehicle Portal</h1>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
           <button 
@@ -199,7 +199,7 @@ export default function CustomerPortal({
                 </div>
                 <div className="mt-2 sm:mt-0 text-left sm:text-right">
                   <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono">Current Estimate</span>
-                  <h4 className="text-lg font-bold text-rose-500 font-mono">${appointment.estimatedCost}</h4>
+                  <h4 className="text-lg font-bold text-rose-500 font-mono">₹{appointment.estimatedCost}</h4>
                 </div>
               </div>
             </div>
@@ -327,7 +327,7 @@ export default function CustomerPortal({
                             {rec.category === 'vas' ? 'Optional (VAS)' : 'Required Repair'}
                           </span>
                         </div>
-                        <span className="font-bold text-sm text-rose-500 font-mono">${rec.cost}</span>
+                        <span className="font-bold text-sm text-rose-500 font-mono">₹{rec.cost}</span>
                       </div>
 
                       {rec.proofUrl && (
@@ -401,7 +401,7 @@ export default function CustomerPortal({
               </label>
               <input 
                 type="text" 
-                placeholder="e.g. Tesla Model S"
+                placeholder="e.g. Maruti Suzuki Swift"
                 value={vehicleModel}
                 onChange={(e) => setVehicleModel(e.target.value)}
                 required
@@ -418,9 +418,9 @@ export default function CustomerPortal({
                 onChange={(e) => setSelectedService(e.target.value)}
                 className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent text-sm"
               >
-                <option value="Standard Service Package">Standard Maintenance Package ($120)</option>
-                <option value="Advanced Safety Inspection">Advanced Safety Diagnostic ($240)</option>
-                <option value="Braking System Overhaul">Full Braking System Diagnostic ($450)</option>
+                <option value="Standard Service Package">Standard Maintenance Package (₹3,500)</option>
+                <option value="Advanced Safety Inspection">Advanced Safety Diagnostic (₹7,500)</option>
+                <option value="Braking System Overhaul">Full Braking System Diagnostic (₹12,500)</option>
               </select>
             </div>
 

@@ -43,7 +43,7 @@ export default function ProofPackScreen({ appointment }) {
       <View style={styles.header}>
         <ShieldCheck size={36} color="#e11d48" />
         <Text style={styles.title}>Verified Service Passport</Text>
-        <Text style={styles.subtitle}>Below is the tamper-resistant execution history for your Tesla service.</Text>
+        <Text style={styles.subtitle}>Below is the tamper-resistant execution history for your vehicle's service.</Text>
       </View>
 
       <View style={styles.signaturesCard}>

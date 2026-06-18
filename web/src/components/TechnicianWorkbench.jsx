@@ -425,7 +425,7 @@ export default function TechnicianWorkbench({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1">
-                      Estimated Cost ($)
+                      Estimated Cost (₹)
                     </label>
                     <input 
                       type="number" 
@@ -491,7 +491,7 @@ export default function TechnicianWorkbench({
                           <span className="font-bold block truncate">{r.service}</span>
                           <span className="text-[10px] uppercase text-rose-500 font-semibold">{r.category}</span>
                         </div>
-                        <span className="font-mono font-bold text-rose-500">${r.cost}</span>
+                        <span className="font-mono font-bold text-rose-500">₹{r.cost}</span>
                       </div>
                     ))}
                   </div>

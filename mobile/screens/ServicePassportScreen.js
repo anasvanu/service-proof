@@ -10,16 +10,16 @@ export default function ServicePassportScreen() {
   const pastServices = [
     {
       date: "Oct 12, 2025",
-      odometer: "18,421 miles",
+      odometer: "18,421 km",
       type: "Annual Scheduled Maintenance",
-      dealer: "Tesla Noida Service Hub",
+      dealer: "Mahindra Noida Service Hub",
       items: ["Cabin Air Filter Replaced", "Tire Rotation & Balance", "Brake Caliper Lubrication"],
       status: "Verified Passport Stamp",
       certId: "SP-990219A"
     },
     {
       date: "Apr 04, 2025",
-      odometer: "9,850 miles",
+      odometer: "9,850 km",
       type: "First Safety Check & Oil Service",
       dealer: "Verified Independent Workshop",
       items: ["Engine Oil & Filter Changed", "Multi-point inspection check"],

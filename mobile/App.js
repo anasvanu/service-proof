@@ -86,7 +86,7 @@ export default function App() {
         return r;
       });
 
-      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const baseCost = targetApp.service.includes('Advanced') ? 7500 : targetApp.service.includes('Braking') ? 12500 : 3500;
       const approvedCost = updatedRecs
         .filter(r => r.status === 'approved')
         .reduce((acc, r) => acc + r.cost, 0);

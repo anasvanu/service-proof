@@ -40,7 +40,7 @@ export default function ApprovalScreen({ appointment, onApprove, onDecline }) {
                 </Text>
               </View>
             </View>
-            <Text style={styles.recCost}>${rec.cost}</Text>
+            <Text style={styles.recCost}>₹{rec.cost}</Text>
           </View>
 
           {rec.proofUrl && (

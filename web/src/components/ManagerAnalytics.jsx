@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   TrendingUp, 
-  DollarSign, 
+  IndianRupee, 
   Users, 
   Wrench, 
   Star, 
@@ -42,14 +42,14 @@ export default function ManagerAnalytics({ appointments }) {
         <div className="glass-card">
           <div className="flex justify-between items-start mb-4">
             <div className="p-2.5 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-xl">
-              <DollarSign className="h-5 w-5" />
+              <IndianRupee className="h-5 w-5" />
             </div>
             <span className="text-xs font-mono font-bold text-emerald-500 flex items-center gap-0.5">
               <TrendingUp className="h-3.5 w-3.5" /> +14.2%
             </span>
           </div>
           <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono block">Total Revenue</span>
-          <span className="text-2xl font-bold font-mono mt-1 block">${totalRevenue}</span>
+          <span className="text-2xl font-bold font-mono mt-1 block">₹{totalRevenue}</span>
         </div>
 
         {/* Avg Repair Order */}
@@ -63,7 +63,7 @@ export default function ManagerAnalytics({ appointments }) {
             </span>
           </div>
           <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono block">Average RO Value</span>
-          <span className="text-2xl font-bold font-mono mt-1 block">${avgROValue}</span>
+          <span className="text-2xl font-bold font-mono mt-1 block">₹{avgROValue}</span>
         </div>
 
         {/* Technician Efficiency */}
@@ -141,7 +141,7 @@ export default function ManagerAnalytics({ appointments }) {
                       {app.service}
                     </td>
                     <td className="py-3 text-right font-mono font-bold text-rose-500">
-                      ${app.estimatedCost}
+                      ₹{app.estimatedCost}
                     </td>
                   </tr>
                 ))}
@@ -183,14 +183,14 @@ export default function ManagerAnalytics({ appointments }) {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500 dark:text-slate-400">RO Recommendation Upsell</span>
                   <span className="font-bold font-mono">
-                    {Math.round((appointments.filter(a => a.estimatedCost > 120).length / Math.max(1, appointments.length)) * 100)}%
+                    {Math.round((appointments.filter(a => a.estimatedCost > 3500).length / Math.max(1, appointments.length)) * 100)}%
                   </span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2">
                   <div 
                     className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
                     style={{ 
-                      width: `${(appointments.filter(a => a.estimatedCost > 120).length / Math.max(1, appointments.length)) * 100}%` 
+                      width: `${(appointments.filter(a => a.estimatedCost > 3500).length / Math.max(1, appointments.length)) * 100}%` 
                     }}
                   ></div>
                 </div>
