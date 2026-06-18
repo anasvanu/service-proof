@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, Platform, TouchableOpacity, StatusBar, TextInput } from 'react-native';
-import { Calendar, ShieldAlert, Award, FileCheck, CheckCircle2, Settings } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, SafeAreaView, Platform, TouchableOpacity, StatusBar } from 'react-native';
+import { Calendar, ShieldAlert, Award, FileCheck } from 'lucide-react-native';
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 import TrackerScreen from './screens/TrackerScreen';
 import ApprovalScreen from './screens/ApprovalScreen';
@@ -12,101 +14,94 @@ export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [messages, setMessages] = useState([]);
   const [online, setOnline] = useState(false);
-  const [serverUrl, setServerUrl] = useState('http://localhost:3001/api/data');
-  const [showSettings, setShowSettings] = useState(false);
 
-  const serverUrlRef = useRef(serverUrl);
+  // Sync state from Firebase Firestore
   useEffect(() => {
-    serverUrlRef.current = serverUrl;
-  }, [serverUrl]);
-
-  // Sync state from Shared database server
-  const fetchState = async () => {
-    try {
-      const response = await fetch(serverUrlRef.current);
-      if (response.ok) {
-        const data = await response.json();
-        setAppointments(data.appointments || []);
-        setMessages(data.messages || []);
-        setOnline(true);
-      }
-    } catch (err) {
-      // Offline mode
-      setOnline(false);
-    }
-  };
-
-  const pushState = async (newApps) => {
-    try {
-      await fetch(serverUrlRef.current, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointments: newApps, messages: messages })
+    // Listen for appointments
+    const unsubscribeAppointments = onSnapshot(collection(db, "appointments"), (snapshot) => {
+      const apps = [];
+      snapshot.forEach((doc) => {
+        apps.push(doc.data());
       });
+      setAppointments(apps);
       setOnline(true);
-    } catch (err) {
+    }, (err) => {
+      console.error("Mobile appointments listener error:", err);
       setOnline(false);
-    }
-  };
+    });
 
-  useEffect(() => {
-    fetchState();
-    const interval = setInterval(fetchState, 2000);
-    return () => clearInterval(interval);
+    // Listen for messages
+    const unsubscribeMessages = onSnapshot(collection(db, "messages"), (snapshot) => {
+      const msgs = [];
+      snapshot.forEach((doc) => {
+        msgs.push(doc.data());
+      });
+      msgs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      setMessages(msgs);
+    }, (err) => {
+      console.error("Mobile messages listener error:", err);
+    });
+
+    return () => {
+      unsubscribeAppointments();
+      unsubscribeMessages();
+    };
   }, []);
 
   const activeRo = appointments.find(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
 
-  const handleApprove = (recId) => {
-    const newApps = appointments.map(app => {
-      const recIndex = app.recommendations?.findIndex(r => r.id === recId);
-      if (recIndex !== undefined && recIndex !== -1) {
-        const updatedRecs = [...app.recommendations];
-        updatedRecs[recIndex] = { ...updatedRecs[recIndex], status: 'approved' };
-        
-        // If all approved/declined, transition status
-        const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
-        const newStatus = pendingCount === 0 ? 'in_progress' : app.status;
+  const handleApprove = async (recId) => {
+    try {
+      const targetApp = appointments.find(app => app.recommendations?.some(r => r.id === recId));
+      if (!targetApp) return;
 
-        return {
-          ...app,
-          recommendations: updatedRecs,
-          status: newStatus
-        };
-      }
-      return app;
-    });
-    setAppointments(newApps);
-    pushState(newApps);
+      const updatedRecs = targetApp.recommendations.map(r => {
+        if (r.id === recId) {
+          return { ...r, status: 'approved' };
+        }
+        return r;
+      });
+
+      const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
+      const newStatus = pendingCount === 0 ? 'in_progress' : targetApp.status;
+
+      await setDoc(doc(db, "appointments", targetApp.id), {
+        recommendations: updatedRecs,
+        status: newStatus
+      }, { merge: true });
+    } catch (err) {
+      console.error("Mobile handleApprove error:", err);
+    }
   };
 
-  const handleDecline = (recId) => {
-    const newApps = appointments.map(app => {
-      const recIndex = app.recommendations?.findIndex(r => r.id === recId);
-      if (recIndex !== undefined && recIndex !== -1) {
-        const updatedRecs = [...app.recommendations];
-        updatedRecs[recIndex] = { ...updatedRecs[recIndex], status: 'declined' };
+  const handleDecline = async (recId) => {
+    try {
+      const targetApp = appointments.find(app => app.recommendations?.some(r => r.id === recId));
+      if (!targetApp) return;
 
-        // Recalculate cost
-        const baseCost = app.service.includes('Advanced') ? 240 : app.service.includes('Braking') ? 450 : 120;
-        const approvedCost = updatedRecs
-          .filter(r => r.status === 'approved')
-          .reduce((acc, r) => acc + r.cost, 0);
+      const updatedRecs = targetApp.recommendations.map(r => {
+        if (r.id === recId) {
+          return { ...r, status: 'declined' };
+        }
+        return r;
+      });
 
-        const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
-        const newStatus = pendingCount === 0 ? 'in_progress' : app.status;
+      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const approvedCost = updatedRecs
+        .filter(r => r.status === 'approved')
+        .reduce((acc, r) => acc + r.cost, 0);
 
-        return {
-          ...app,
-          recommendations: updatedRecs,
-          estimatedCost: baseCost + approvedCost,
-          status: newStatus
-        };
-      }
-      return app;
-    });
-    setAppointments(newApps);
-    pushState(newApps);
+      const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
+      const newStatus = pendingCount === 0 ? 'in_progress' : targetApp.status;
+
+      await setDoc(doc(db, "appointments", targetApp.id), {
+        recommendations: updatedRecs,
+        estimatedCost: baseCost + approvedCost,
+        status: newStatus
+      }, { merge: true });
+    } catch (err) {
+      console.error("Mobile handleDecline error:", err);
+    }
   };
 
   const renderContent = () => {
@@ -132,27 +127,8 @@ export default function App() {
         <View style={styles.statusRow}>
           <View style={[styles.dot, online ? styles.onlineDot : styles.offlineDot]} />
           <Text style={styles.statusText}>{online ? 'Online Sync' : 'Offline'}</Text>
-          <TouchableOpacity onPress={() => setShowSettings(!showSettings)} style={{ padding: 4, marginLeft: 4 }}>
-            <Settings size={16} color={showSettings ? '#e11d48' : '#94a3b8'} />
-          </TouchableOpacity>
         </View>
       </View>
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <View style={styles.settingsPanel}>
-          <Text style={styles.settingsLabel}>API Server URL:</Text>
-          <TextInput
-            style={styles.settingsInput}
-            value={serverUrl}
-            onChangeText={setServerUrl}
-            placeholder="http://localhost:3001/api/data"
-            placeholderTextColor="#475569"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-      )}
 
       {/* Main Panel Content */}
       <View style={styles.main}>
@@ -270,28 +246,5 @@ const styles = StyleSheet.create({
   },
   activeTabLabel: {
     color: '#e11d48',
-  },
-  settingsPanel: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: '#0d1322',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1e293b',
-  },
-  settingsLabel: {
-    color: '#94a3b8',
-    fontSize: 11,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  settingsInput: {
-    height: 36,
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
-    borderWidth: 1,
-    borderRadius: 6,
-    color: '#ffffff',
-    paddingHorizontal: 10,
-    fontSize: 12,
   }
 });

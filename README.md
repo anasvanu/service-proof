@@ -1,84 +1,103 @@
-# Service Proof
+# Service Proof (Serverless Firebase)
 
 Service Proof is a complete vehicle service transparency ecosystem (inspired by Xtime). It includes a **Multi-Point Inspection (MPI)** engine, advisor-customer chat channels, digital signature approvals, and visual **Proof-of-Work Verification** (video streams of fluid drainages, tire wall tread depths, brake pads, etc.) to bridge the trust gap between workshops and vehicle owners.
 
+By utilizing a **Serverless Database Architecture** with **Firebase Firestore**, this repository requires no backend API server, eliminating startup latencies ("cold starts") and syncing changes in real-time across Web and Mobile dashboards automatically.
+
+---
+
 ## Monorepo Architecture
 
-The repository is structured as a unified monorepo:
+The repository is structured as a serverless monorepo:
 
-- **`api/`**: Node.js backend server managing CRUD actions and websocket/polling synchronization. It supports connecting to a cloud **MongoDB Atlas** database, and automatically falls back to a local `db.json` database if no connection URI is configured.
-- **`web/`**: Vite + React modern glassmorphic web dashboard containing 4 dedicated roles:
-  - **Technician Workbench**: Perform inspections, capture photo/video proof, and sign off.
-  - **Advisor Dashboard**: Track progress, start chat threads, inspect items, and request QC.
-  - **Customer Portal**: Review estimates itemized by categories (OEM vs. Repair vs. Value-Added Service) with attached visual evidence, approve/decline, and sign off.
-  - **Manager Analytics**: View live throughput, average repair approvals, and revenue metrics.
+- **`web/`**: Vite + React modern glassmorphic web dashboard containing 4 dedicated roles (Manager, Advisor, Technician, and Customer) communicating directly with Firestore.
 - **`mobile/`**: Expo + React Native mobile application for customers to track service in real time, view proofs, accept/decline repairs, and review their digital vehicle service history passport.
 
 ---
 
-## Local Setup
+## Setup & Environment Variables
 
-### Prerequisites
-Make sure you have Node.js (v18+) and npm installed.
+To connect your applications to the cloud, you will need to set up a free Firebase project.
 
-### 1. Run the API Server
-```bash
-cd api
-npm install
-npm start
+### 1. Create a Free Firebase Project
+1. Go to the [Firebase Console](https://console.firebase.google.com/) and click **Add Project**.
+2. Name your project (e.g. `service-proof`) and click **Create Project**.
+3. Under **Build**, select **Firestore Database** and click **Create Database**. Start in **production mode** or **test mode** (for test mode, rules allow public reads/writes for 30 days; make sure to write secure security rules for production). Select your database region and click **Enable**.
+4. In the Project Overview dashboard, click the **Web Icon (`</>`)** to register a new Web App. Copy the `firebaseConfig` object values. It will look like this:
+   ```javascript
+   const firebaseConfig = {
+     apiKey: "AIzaSy...",
+     authDomain: "service-proof.firebaseapp.com",
+     projectId: "service-proof",
+     storageBucket: "service-proof.appspot.com",
+     messagingSenderId: "123456789",
+     appId: "1:12345:web:abcd"
+   };
+   ```
+
+### 2. Configure Web Dashboard Environment Variables
+Create a `.env` file inside the `web/` folder:
+```env
+VITE_FIREBASE_API_KEY=your_apiKey
+VITE_FIREBASE_AUTH_DOMAIN=your_authDomain
+VITE_FIREBASE_PROJECT_ID=your_projectId
+VITE_FIREBASE_STORAGE_BUCKET=your_storageBucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messagingSenderId
+VITE_FIREBASE_APP_ID=your_appId
 ```
-*By default, the server runs on port `3001` and reads/writes to `db.json`. If you create a `.env` file containing `MONGODB_URI`, the server will connect to MongoDB Atlas and seed the collection with the initial values from `db.json` automatically.*
 
-### 2. Run the Web Dashboard
+### 3. Configure Mobile App Environment Variables
+Create a `.env` file inside the `mobile/` folder. Expo uses `EXPO_PUBLIC_` prefix to securely expose keys to your client bundle:
+```env
+EXPO_PUBLIC_FIREBASE_API_KEY=your_apiKey
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_authDomain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_projectId
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storageBucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messagingSenderId
+EXPO_PUBLIC_FIREBASE_APP_ID=your_appId
+```
+
+---
+
+## Running Locally
+
+### 1. Run the Web Dashboard
 ```bash
 cd web
 npm install
 npm run dev
 ```
-*The web dashboard runs on port `5173`. To point to a custom API URL, create a `.env` file containing `VITE_API_URL=https://your-api-url.onrender.com/api/data`.*
+*The web dashboard runs locally on port `5173`.*
 
-### 3. Run the Customer Mobile App
+### 2. Run the Customer Mobile App
 ```bash
 cd mobile
 npm install
 npm run start
-# Or for web output:
+# Or for web preview output:
 npm run web
 ```
-*To test sync with your local machine or staging servers, tap the **Settings Gear Icon** in the top right header of the mobile app to type in the API server IP address.*
+*You can scan the terminal QR code using the free **Expo Go** app on your physical iOS/Android phone to run the mobile app instantly.*
 
 ---
 
-## Deployment Guide
+## Deployment & Hosting
 
-### API Server (Render Deployment)
-1. Log in to [Render](https://render.com/).
-2. Click **New +** > **Web Service**.
-3. Link your GitHub repository and select the `service-proof-repo` project.
-4. Set the following settings:
-   - **Root Directory**: `api`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-5. In **Environment Variables**, add:
-   - `MONGODB_URI`: *Your MongoDB Atlas Connection URI* (e.g. `mongodb+srv://...`)
-   - `PORT`: `3001`
-
-### Web Dashboard (Vercel Deployment)
-1. Log in to [Vercel](https://vercel.com/).
-2. Click **Add New** > **Project** and select your GitHub repository.
-3. In the project configure settings:
+### Web Dashboard (Vercel - 100% Free)
+1. Import this repository into [Vercel](https://vercel.com).
+2. Configure settings:
    - **Framework Preset**: `Vite`
    - **Root Directory**: `web`
-4. Under **Environment Variables**, add:
-   - `VITE_API_URL`: *Your deployed Render API endpoint URL + `/api/data`* (e.g. `https://service-proof-api.onrender.com/api/data`)
-5. Click **Deploy**.
+3. Under **Environment Variables**, add the six `VITE_FIREBASE_` variables config keys.
+4. Click **Deploy**.
 
----
-
-## Database Configuration (MongoDB Atlas Free Tier)
-To create a free MongoDB database:
-1. Sign up for a free account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
-2. Create a new Shared Cluster (M0 Free Tier).
-3. Under **Database Access**, create a user with read/write permissions.
-4. Under **Network Access**, allow access from anywhere (`0.0.0.0/0`) since Render uses dynamic IP addresses.
-5. Copy the connection string (with your username and password) and plug it into Render's `MONGODB_URI` environment variable.
+### Mobile App Testing & Distribution
+- **Expo Go (Free):** Use `npx expo start` to run and share the project dynamically for testing on iOS and Android.
+- **Android Release APK (Free):** Build a standalone `.apk` using Expo's cloud compiler (EAS Build):
+  ```bash
+  npm install -g eas-cli
+  eas login
+  eas build:configure
+  eas build --platform android --profile preview
+  ```
+  *(Once completed, Expo provides a public download link to install the `.apk` directly on any Android device for free.)*

@@ -11,12 +11,19 @@ import {
   BarChart3,
   AlertCircle
 } from 'lucide-react';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  getDocs 
+} from 'firebase/firestore';
+import { db } from './firebase';
 import CustomerPortal from './components/CustomerPortal';
 import AdvisorDashboard from './components/AdvisorDashboard';
 import TechnicianWorkbench from './components/TechnicianWorkbench';
 import ManagerAnalytics from './components/ManagerAnalytics';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/data';
 
 export default function App() {
   const [isDark, setIsDark] = useState(true);
@@ -27,46 +34,128 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch data from local API server
-  const fetchLocalData = async () => {
+  // Helper to seed Firestore with default data if empty
+  const seedFirestoreIfEmpty = async () => {
     try {
-      const response = await fetch(API_URL);
-      if (response.ok) {
-        const data = await response.json();
-        setAppointments(data.appointments || []);
-        setMessages(data.messages || []);
+      console.log("Firestore is empty. Seeding default data...");
+      const defaultApps = [
+        {
+          id: "ro-1",
+          customerName: "John Doe",
+          vehicle: "Tesla Model Y (2023)",
+          service: "Standard Service Package",
+          date: "2026-06-19",
+          time: "11:30 AM",
+          status: "scheduled",
+          estimatedCost: 120,
+          inspection: null,
+          recommendations: [],
+          techSignature: "",
+          qcSignature: ""
+        },
+        {
+          id: "ro-2",
+          customerName: "Sarah Jenkins",
+          vehicle: "Ford F-150 Lightning (2024)",
+          service: "Advanced Safety Inspection",
+          date: "2026-06-18",
+          time: "09:00 AM",
+          status: "inspecting",
+          estimatedCost: 240,
+          techSignature: "Tech #402",
+          qcSignature: "",
+          inspection: {
+            brakingSystem: { status: "yellow", comment: "Pads are at 4/32\". Recommend replacement soon.", type: "repair" },
+            batteryHealth: { status: "green", comment: "Battery health test passes at 96% state-of-health.", type: "oem" },
+            tireTread: { status: "red", comment: "Front right tire inner wall shows balding at 2/32\".", type: "repair" },
+            engineFluids: { status: "green", comment: "All coolant/brake fluids clean and level.", type: "oem" }
+          },
+          recommendations: [
+            {
+              id: "rec-1",
+              service: "Front Brake Pad Replacement",
+              details: "Replace front disc brake pads to restore full stopping power before metal-on-metal wear.",
+              cost: 299,
+              proofUrl: "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=400&q=80",
+              status: "pending",
+              category: "repair",
+              executionProof: ""
+            },
+            {
+              id: "rec-2",
+              service: "Front Right Tire Replacement",
+              details: "Treads are critically low on the front right tire. Dangerous for wet conditions.",
+              cost: 180,
+              proofUrl: "https://images.unsplash.com/photo-1191010313-0ea10c4f1cfa?auto=format&fit=crop&w=400&q=80",
+              status: "pending",
+              category: "repair",
+              executionProof: ""
+            },
+            {
+              id: "rec-3",
+              service: "Premium AC Sanitization (VAS)",
+              details: "Sanitize internal HVAC ducts to remove cabin odors and bacteria.",
+              cost: 89,
+              proofUrl: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=400&q=80",
+              status: "pending",
+              category: "vas",
+              executionProof: ""
+            }
+          ]
+        }
+      ];
+
+      const defaultMsgs = [
+        { sender: "Advisor", recipient: "Sarah Jenkins", text: "Hi Sarah, your F-150 is in the bay. Technician is performing the Multi-Point Inspection now.", timestamp: "2026-06-18T09:05:00.000Z" },
+        { sender: "Sarah Jenkins", recipient: "Advisor", text: "Sounds good! Let me know what you find.", timestamp: "2026-06-18T09:07:00.000Z" }
+      ];
+
+      for (const app of defaultApps) {
+        await setDoc(doc(db, "appointments", app.id), app);
+      }
+      for (const msg of defaultMsgs) {
+        await setDoc(doc(collection(db, "messages")), msg);
       }
     } catch (err) {
-      console.error("Failed to connect to API server. Using offline state.", err);
-    } finally {
+      console.error("Error seeding Firestore:", err);
+    }
+  };
+
+  // Real-time synchronization listeners
+  useEffect(() => {
+    // Listen for appointments
+    const unsubscribeAppointments = onSnapshot(collection(db, "appointments"), (snapshot) => {
+      if (snapshot.empty) {
+        seedFirestoreIfEmpty();
+      } else {
+        const apps = [];
+        snapshot.forEach((doc) => {
+          apps.push(doc.data());
+        });
+        setAppointments(apps);
+        setLoading(false);
+      }
+    }, (err) => {
+      console.error("Appointments listener error:", err);
       setLoading(false);
-    }
-  };
+    });
 
-  // Push data to local API server
-  const pushLocalData = async (newApps, newMsgs) => {
-    try {
-      await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointments: newApps, messages: newMsgs })
+    // Listen for messages
+    const unsubscribeMessages = onSnapshot(collection(db, "messages"), (snapshot) => {
+      const msgs = [];
+      snapshot.forEach((doc) => {
+        msgs.push(doc.data());
       });
-    } catch (err) {
-      console.error("Failed to push data to API server", err);
-    }
-  };
+      msgs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      setMessages(msgs);
+    }, (err) => {
+      console.error("Messages listener error:", err);
+    });
 
-  // Initial Fetch
-  useEffect(() => {
-    fetchLocalData();
-  }, []);
-
-  // Polling for real-time synchronization with Mobile App
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchLocalData();
-    }, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      unsubscribeAppointments();
+      unsubscribeMessages();
+    };
   }, []);
 
   // Sync dark class on body
@@ -78,189 +167,193 @@ export default function App() {
     }
   }, [isDark]);
 
-  const updateStateAndSync = (newApps, newMsgs) => {
-    setAppointments(newApps);
-    setMessages(newMsgs);
-    pushLocalData(newApps, newMsgs);
-  };
-
   // Advisor Check In Action
-  const handleCheckIn = (id) => {
-    const newApps = appointments.map(app => {
-      if (app.id === id) {
-        return { ...app, status: 'checked_in' };
-      }
-      return app;
-    });
-    
-    const targetApp = appointments.find(a => a.id === id);
-    const newMsgs = [...messages];
-    if (targetApp) {
-      newMsgs.push({
+  const handleCheckIn = async (id) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'checked_in'
+      }, { merge: true });
+      
+      await setDoc(doc(collection(db, "messages")), {
         sender: 'Advisor',
         recipient: targetApp.customerName,
         text: `Welcome! Your ${targetApp.vehicle} has been checked in for service. Our technicians will inspect it shortly.`,
         timestamp: new Date().toISOString()
       });
+    } catch (err) {
+      console.error("Firestore CheckIn error:", err);
     }
-    updateStateAndSync(newApps, newMsgs);
   };
 
   // Tech Start Inspection Action
-  const handleStartInspection = (id) => {
-    const newApps = appointments.map(app => {
-      if (app.id === id) {
-        return { ...app, status: 'inspecting' };
-      }
-      return app;
-    });
-    updateStateAndSync(newApps, messages);
+  const handleStartInspection = async (id) => {
+    try {
+      await setDoc(doc(db, "appointments", id), {
+        status: 'inspecting'
+      }, { merge: true });
+    } catch (err) {
+      console.error("Firestore StartInspection error:", err);
+    }
   };
 
   // Tech Submit Inspection Action
-  const handleSubmitInspection = (id, report, recommendations) => {
-    const newApps = appointments.map(app => {
-      if (app.id === id) {
-        const baseCost = app.service.includes('Advanced') ? 240 : app.service.includes('Braking') ? 450 : 120;
-        const recommendationsCost = recommendations.reduce((acc, r) => acc + r.cost, 0);
-        return {
-          ...app,
-          status: 'inspecting', // Awaiting customer review
-          inspection: report,
-          recommendations: recommendations,
-          estimatedCost: baseCost + recommendationsCost,
-          techSignature: "Tech #402"
-        };
-      }
-      return app;
-    });
+  const handleSubmitInspection = async (id, report, recommendations) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
 
-    const targetApp = appointments.find(a => a.id === id);
-    const newMsgs = [...messages];
-    if (targetApp) {
-      newMsgs.push({
+      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const recommendationsCost = recommendations.reduce((acc, r) => acc + r.cost, 0);
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'inspecting', // Awaiting customer review
+        inspection: report,
+        recommendations: recommendations,
+        estimatedCost: baseCost + recommendationsCost,
+        techSignature: "Tech #402"
+      }, { merge: true });
+
+      await setDoc(doc(collection(db, "messages")), {
         sender: 'Advisor',
         recipient: targetApp.customerName,
         text: `Hi ${targetApp.customerName}, our technician has completed your vehicle safety inspection. Please log into the portal to review findings & approvals.`,
         timestamp: new Date().toISOString()
       });
+    } catch (err) {
+      console.error("Firestore SubmitInspection error:", err);
     }
-    updateStateAndSync(newApps, newMsgs);
   };
 
   // Customer Approve Recommendation
-  const handleApproveRecommendation = (recId) => {
-    const newApps = appointments.map(app => {
-      const recIndex = app.recommendations.findIndex(r => r.id === recId);
-      if (recIndex !== -1) {
-        const updatedRecs = [...app.recommendations];
-        updatedRecs[recIndex] = { ...updatedRecs[recIndex], status: 'approved' };
-        
-        // If all approvals are completed, move status to in_progress
-        const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
-        const newStatus = pendingCount === 0 ? 'in_progress' : app.status;
+  const handleApproveRecommendation = async (recId) => {
+    try {
+      const targetApp = appointments.find(app => app.recommendations?.some(r => r.id === recId));
+      if (!targetApp) return;
 
-        return {
-          ...app,
-          recommendations: updatedRecs,
-          status: newStatus
-        };
-      }
-      return app;
-    });
-    updateStateAndSync(newApps, messages);
+      const updatedRecs = targetApp.recommendations.map(r => {
+        if (r.id === recId) {
+          return { ...r, status: 'approved' };
+        }
+        return r;
+      });
+
+      const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
+      const newStatus = pendingCount === 0 ? 'in_progress' : targetApp.status;
+
+      await setDoc(doc(db, "appointments", targetApp.id), {
+        recommendations: updatedRecs,
+        status: newStatus
+      }, { merge: true });
+    } catch (err) {
+      console.error("Firestore ApproveRecommendation error:", err);
+    }
   };
 
   // Customer Decline Recommendation
-  const handleDeclineRecommendation = (recId) => {
-    const newApps = appointments.map(app => {
-      const recIndex = app.recommendations.findIndex(r => r.id === recId);
-      if (recIndex !== -1) {
-        const updatedRecs = [...app.recommendations];
-        updatedRecs[recIndex] = { ...updatedRecs[recIndex], status: 'declined' };
+  const handleDeclineRecommendation = async (recId) => {
+    try {
+      const targetApp = appointments.find(app => app.recommendations?.some(r => r.id === recId));
+      if (!targetApp) return;
 
-        // Subtract cost from estimate
-        const baseCost = app.service.includes('Advanced') ? 240 : app.service.includes('Braking') ? 450 : 120;
-        const approvedRecsCost = updatedRecs
-          .filter(r => r.status === 'approved')
-          .reduce((acc, r) => acc + r.cost, 0);
+      const updatedRecs = targetApp.recommendations.map(r => {
+        if (r.id === recId) {
+          return { ...r, status: 'declined' };
+        }
+        return r;
+      });
 
-        const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
-        const newStatus = pendingCount === 0 ? 'in_progress' : app.status;
+      const baseCost = targetApp.service.includes('Advanced') ? 240 : targetApp.service.includes('Braking') ? 450 : 120;
+      const approvedRecsCost = updatedRecs
+        .filter(r => r.status === 'approved')
+        .reduce((acc, r) => acc + r.cost, 0);
 
-        return {
-          ...app,
-          recommendations: updatedRecs,
-          estimatedCost: baseCost + approvedRecsCost,
-          status: newStatus
-        };
-      }
-      return app;
-    });
-    updateStateAndSync(newApps, messages);
+      const pendingCount = updatedRecs.filter(r => r.status === 'pending').length;
+      const newStatus = pendingCount === 0 ? 'in_progress' : targetApp.status;
+
+      await setDoc(doc(db, "appointments", targetApp.id), {
+        recommendations: updatedRecs,
+        estimatedCost: baseCost + approvedRecsCost,
+        status: newStatus
+      }, { merge: true });
+    } catch (err) {
+      console.error("Firestore DeclineRecommendation error:", err);
+    }
   };
 
   // Tech Complete Repairs
-  const handleCompleteRepairs = (id) => {
-    const newApps = appointments.map(app => {
-      if (app.id === id) {
-        return { ...app, status: 'ready' };
-      }
-      return app;
-    });
-    
-    const targetApp = appointments.find(a => a.id === id);
-    const newMsgs = [...messages];
-    if (targetApp) {
-      newMsgs.push({
+  const handleCompleteRepairs = async (id) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'ready'
+      }, { merge: true });
+
+      await setDoc(doc(collection(db, "messages")), {
         sender: 'Advisor',
         recipient: targetApp.customerName,
         text: `Good news! All authorized repairs for your ${targetApp.vehicle} are completed. Your vehicle is ready for pickup.`,
         timestamp: new Date().toISOString()
       });
+    } catch (err) {
+      console.error("Firestore CompleteRepairs error:", err);
     }
-    updateStateAndSync(newApps, newMsgs);
   };
 
   // Chat message addition
-  const handleSendMessage = (msg) => {
-    const newMsgs = [...messages, { ...msg, timestamp: new Date().toISOString() }];
-    updateStateAndSync(appointments, newMsgs);
+  const handleSendMessage = async (msg) => {
+    try {
+      await setDoc(doc(collection(db, "messages")), {
+        ...msg,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Firestore SendMessage error:", err);
+    }
   };
 
   // Customer Book Appointment
-  const handleScheduleAppointment = (newApp) => {
-    const formattedApp = {
-      id: `ro-${Date.now()}`,
-      customerName: 'John Doe',
-      vehicle: newApp.vehicle,
-      service: newApp.service,
-      date: newApp.date,
-      time: newApp.time,
-      status: 'scheduled',
-      estimatedCost: newApp.service.includes('Advanced') ? 240 : newApp.service.includes('Braking') ? 450 : 120,
-      inspection: null,
-      recommendations: [],
-      techSignature: '',
-      qcSignature: ''
-    };
-    const newApps = [...appointments, formattedApp];
-    updateStateAndSync(newApps, messages);
+  const handleScheduleAppointment = async (newApp) => {
+    try {
+      const id = `ro-${Date.now()}`;
+      const formattedApp = {
+        id: id,
+        customerName: 'John Doe',
+        vehicle: newApp.vehicle,
+        service: newApp.service,
+        date: newApp.date,
+        time: newApp.time,
+        status: 'scheduled',
+        estimatedCost: newApp.service.includes('Advanced') ? 240 : newApp.service.includes('Braking') ? 450 : 120,
+        inspection: null,
+        recommendations: [],
+        techSignature: '',
+        qcSignature: ''
+      };
+      await setDoc(doc(db, "appointments", id), formattedApp);
+    } catch (err) {
+      console.error("Firestore ScheduleAppointment error:", err);
+    }
   };
 
   // Clear simulated database
   const handleResetData = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointments: [], messages: [] })
-      });
-      if (response.ok) {
-        fetchLocalData();
-      }
+      const appSnapshot = await getDocs(collection(db, "appointments"));
+      const appPromises = appSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(appPromises);
+
+      const msgSnapshot = await getDocs(collection(db, "messages"));
+      const msgPromises = msgSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(msgPromises);
+
+      console.log("Firestore reset complete.");
     } catch (err) {
-      console.error(err);
+      console.error("Firestore ResetData error:", err);
     }
   };
 
