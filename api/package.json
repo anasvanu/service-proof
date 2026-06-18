@@ -1,0 +1,13 @@
+{
+  "name": "service-proof-api",
+  "version": "1.0.0",
+  "description": "Service Proof API Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.10.0",
+    "dotenv": "^16.4.5"
+  }
+}

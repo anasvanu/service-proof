@@ -1,0 +1,72 @@
+{
+  "appointments": [
+    {
+      "id": "ro-1",
+      "customerName": "John Doe",
+      "vehicle": "Tesla Model Y (2023)",
+      "service": "Standard Service Package",
+      "date": "2026-06-19",
+      "time": "11:30 AM",
+      "status": "scheduled",
+      "estimatedCost": 120,
+      "inspection": null,
+      "recommendations": [],
+      "techSignature": "",
+      "qcSignature": ""
+    },
+    {
+      "id": "ro-2",
+      "customerName": "Sarah Jenkins",
+      "vehicle": "Ford F-150 Lightning (2024)",
+      "service": "Advanced Safety Inspection",
+      "date": "2026-06-18",
+      "time": "09:00 AM",
+      "status": "inspecting",
+      "estimatedCost": 240,
+      "techSignature": "Tech #402",
+      "qcSignature": "",
+      "inspection": {
+        "brakingSystem": { "status": "yellow", "comment": "Pads are at 4/32\". Recommend replacement soon.", "type": "repair" },
+        "batteryHealth": { "status": "green", "comment": "Battery health test passes at 96% state-of-health.", "type": "oem" },
+        "tireTread": { "status": "red", "comment": "Front right tire inner wall shows balding at 2/32\".", "type": "repair" },
+        "engineFluids": { "status": "green", "comment": "All coolant/brake fluids clean and level.", "type": "oem" }
+      },
+      "recommendations": [
+        {
+          "id": "rec-1",
+          "service": "Front Brake Pad Replacement",
+          "details": "Replace front disc brake pads to restore full stopping power before metal-on-metal wear.",
+          "cost": 299,
+          "proofUrl": "https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=400&q=80",
+          "status": "pending",
+          "category": "repair",
+          "executionProof": ""
+        },
+        {
+          "id": "rec-2",
+          "service": "Front Right Tire Replacement",
+          "details": "Treads are critically low on the front right tire. Dangerous for wet conditions.",
+          "cost": 180,
+          "proofUrl": "https://images.unsplash.com/photo-1191010313-0ea10c4f1cfa?auto=format&fit=crop&w=400&q=80",
+          "status": "pending",
+          "category": "repair",
+          "executionProof": ""
+        },
+        {
+          "id": "rec-3",
+          "service": "Premium AC Sanitization (VAS)",
+          "details": "Sanitize internal HVAC ducts to remove cabin odors and bacteria.",
+          "cost": 89,
+          "proofUrl": "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=400&q=80",
+          "status": "pending",
+          "category": "vas",
+          "executionProof": ""
+        }
+      ]
+    }
+  ],
+  "messages": [
+    { "sender": "Advisor", "recipient": "Sarah Jenkins", "text": "Hi Sarah, your F-150 is in the bay. Technician is performing the Multi-Point Inspection now.", "timestamp": "2026-06-18T09:05:00.000Z" },
+    { "sender": "Sarah Jenkins", "recipient": "Advisor", "text": "Sounds good! Let me know what you find.", "timestamp": "2026-06-18T09:07:00.000Z" }
+  ]
+}
