@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import { 
   CheckCircle2, 
@@ -18,7 +18,10 @@ import {
   MapPin,
   Compass,
   User,
-  History
+  History,
+  Trash2,
+  Edit3,
+  Plus
 } from 'lucide-react';
 
 const INDIAN_VEHICLES = {
@@ -74,16 +77,26 @@ export default function CustomerPortal({
   const [activeTab, setActiveTab] = useState('status'); // 'status' | 'schedule' | 'history' | 'profile'
   const [selectedProofItem, setSelectedProofItem] = useState(null);
 
+  // Profile fleet state
+  const [vehicles, setVehicles] = useState(profile?.vehicles || []);
+  const [editingVehicleId, setEditingVehicleId] = useState(null);
+
   // Profile Form State
-  const [profileMake, setProfileMake] = useState(profile?.make || '');
-  const [profileModel, setProfileModel] = useState(profile?.model || '');
-  const [profileFuel, setProfileFuel] = useState(profile?.fuelType || '');
-  const [profilePlate, setProfilePlate] = useState(profile?.licensePlate || '');
+  const [profileMake, setProfileMake] = useState('');
+  const [profileModel, setProfileModel] = useState('');
+  const [profileFuel, setProfileFuel] = useState('Petrol');
+  const [profilePlate, setProfilePlate] = useState('');
 
   // Booking Form State
+  const [useProfileVehicle, setUseProfileVehicle] = useState(false);
+  const [selectedBookVehId, setSelectedBookVehId] = useState('');
+  
+  // Manual booking vehicle states (if useProfileVehicle is false)
   const [bookMake, setBookMake] = useState('');
   const [bookModel, setBookModel] = useState('');
-  const [useProfileVehicle, setUseProfileVehicle] = useState(false);
+  const [bookFuel, setBookFuel] = useState('Petrol');
+  const [bookPlate, setBookPlate] = useState('');
+
   const [selectedService, setSelectedService] = useState('General Service');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -93,24 +106,36 @@ export default function CustomerPortal({
   const [userLocation, setUserLocation] = useState({ type: 'default' });
   const [selectedDealerId, setSelectedDealerId] = useState(PILOT_DEALERS[0].id);
 
+  // Map state
+  const [mapReady, setMapReady] = useState(false);
+  const mapRef = useRef(null);
+  const leafletMapInstance = useRef(null);
+  const markersGroupRef = useRef(null);
+
   // Pickup Dropoff State
   const [pickupDropoff, setPickupDropoff] = useState(false);
   const [pickupAddress, setPickupAddress] = useState('');
 
-  // Pre-fill profile state when profile prop updates
+  // Sync profile vehicle list
   useEffect(() => {
-    if (profile) {
-      setProfileMake(profile.make || '');
-      setProfileModel(profile.model || '');
-      setProfileFuel(profile.fuelType || '');
-      setProfilePlate(profile.licensePlate || '');
-      if (profile.make) {
-        setUseProfileVehicle(true);
-      }
+    if (profile?.vehicles) {
+      setVehicles(profile.vehicles);
     }
   }, [profile]);
 
-  // Adjust model list when make selection changes
+  // Set default selected vehicle on booking form
+  useEffect(() => {
+    if (vehicles.length > 0) {
+      const defaultVeh = vehicles.find(v => v.isDefault) || vehicles[0];
+      setSelectedBookVehId(defaultVeh.id);
+      setUseProfileVehicle(true);
+    } else {
+      setSelectedBookVehId('manual');
+      setUseProfileVehicle(false);
+    }
+  }, [vehicles]);
+
+  // Adjust model list when make selection changes (profile)
   useEffect(() => {
     const models = INDIAN_VEHICLES[profileMake] || [];
     if (!models.includes(profileModel)) {
@@ -118,6 +143,7 @@ export default function CustomerPortal({
     }
   }, [profileMake]);
 
+  // Adjust model list when make selection changes (booking manual)
   useEffect(() => {
     const models = INDIAN_VEHICLES[bookMake] || [];
     if (!models.includes(bookModel)) {
@@ -125,27 +151,205 @@ export default function CustomerPortal({
     }
   }, [bookMake]);
 
+  // Load Leaflet dynamically via CDN
+  useEffect(() => {
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    if (!window.L) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = () => {
+        setMapReady(true);
+      };
+      document.body.appendChild(script);
+    } else {
+      setMapReady(true);
+    }
+  }, []);
+
+  // Cleanup Leaflet Map when scheduling tab closes
+  useEffect(() => {
+    return () => {
+      if (leafletMapInstance.current) {
+        leafletMapInstance.current.remove();
+        leafletMapInstance.current = null;
+        markersGroupRef.current = null;
+      }
+    };
+  }, [activeTab]);
+
+  // Draw Leaflet map markers and polyline
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || activeTab !== 'schedule') return;
+
+    if (!leafletMapInstance.current) {
+      leafletMapInstance.current = window.L.map(mapRef.current).setView([28.6139, 77.2090], 10);
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(leafletMapInstance.current);
+      markersGroupRef.current = window.L.layerGroup().addTo(leafletMapInstance.current);
+    }
+
+    markersGroupRef.current.clearLayers();
+
+    const selectedDealer = PILOT_DEALERS.find(d => d.id === selectedDealerId);
+    if (!selectedDealer) return;
+
+    // Dealer Custom Marker
+    const dealerIcon = window.L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div class="bg-rose-500 text-white p-2 rounded-full shadow-lg border border-white flex items-center justify-center w-8 h-8"><svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 32]
+    });
+
+    const dealerMarker = window.L.marker([selectedDealer.lat, selectedDealer.lng], { icon: dealerIcon })
+      .bindPopup(`<b>${selectedDealer.name}</b><br/>${selectedDealer.address}`)
+      .addTo(markersGroupRef.current);
+
+    let bounds = [[selectedDealer.lat, selectedDealer.lng]];
+
+    if (userLocation.type === 'gps' && userLocation.lat) {
+      const userIcon = window.L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="bg-blue-500 text-white p-1.5 rounded-full shadow-lg border border-white flex items-center justify-center w-6 h-6 animate-pulse"><div class="h-2.5 w-2.5 bg-white rounded-full"></div></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+
+      window.L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+        .bindPopup("<b>Your GPS Location</b>")
+        .addTo(markersGroupRef.current);
+
+      bounds.push([userLocation.lat, userLocation.lng]);
+
+      // Draw route connecting line
+      window.L.polyline([[userLocation.lat, userLocation.lng], [selectedDealer.lat, selectedDealer.lng]], {
+        color: '#e11d48',
+        weight: 3,
+        dashArray: '6, 12'
+      }).addTo(markersGroupRef.current);
+    }
+
+    if (bounds.length > 1) {
+      leafletMapInstance.current.fitBounds(bounds, { padding: [50, 50] });
+    } else {
+      leafletMapInstance.current.setView([selectedDealer.lat, selectedDealer.lng], 13);
+    }
+
+    dealerMarker.openPopup();
+  }, [mapReady, selectedDealerId, userLocation, activeTab]);
+
+  // Profile CRUD Actions
   const handleProfileSubmit = (e) => {
     e.preventDefault();
     if (!profileMake || !profileModel || !profileFuel || !profilePlate) {
-      alert("Please fill out all profile fields.");
+      alert("Please fill out all vehicle profile fields.");
       return;
     }
-    onSaveProfile({
-      make: profileMake,
-      model: profileModel,
-      fuelType: profileFuel,
-      licensePlate: profilePlate
-    });
-    alert("Customer vehicle profile saved successfully!");
+
+    let updatedVehicles = [];
+    if (editingVehicleId) {
+      updatedVehicles = vehicles.map(v => {
+        if (v.id === editingVehicleId) {
+          return {
+            ...v,
+            make: profileMake,
+            model: profileModel,
+            fuelType: profileFuel,
+            licensePlate: profilePlate
+          };
+        }
+        return v;
+      });
+      setEditingVehicleId(null);
+    } else {
+      const newVeh = {
+        id: `veh-${Date.now()}`,
+        make: profileMake,
+        model: profileModel,
+        fuelType: profileFuel,
+        licensePlate: profilePlate,
+        isDefault: vehicles.length === 0
+      };
+      updatedVehicles = [...vehicles, newVeh];
+    }
+
+    onSaveProfile(updatedVehicles);
+    
+    // Reset Form fields
+    setProfileMake('');
+    setProfileModel('');
+    setProfileFuel('Petrol');
+    setProfilePlate('');
   };
 
+  const handleEditVehicle = (veh) => {
+    setEditingVehicleId(veh.id);
+    setProfileMake(veh.make);
+    setProfileModel(veh.model);
+    setProfileFuel(veh.fuelType);
+    setProfilePlate(veh.licensePlate);
+  };
+
+  const handleDeleteVehicle = (id) => {
+    if (window.confirm("Are you sure you want to remove this vehicle from your profile?")) {
+      const updatedVehicles = vehicles.filter(v => v.id !== id);
+      if (vehicles.find(v => v.id === id)?.isDefault && updatedVehicles.length > 0) {
+        updatedVehicles[0].isDefault = true;
+      }
+      onSaveProfile(updatedVehicles);
+      if (editingVehicleId === id) {
+        setEditingVehicleId(null);
+        setProfileMake('');
+        setProfileModel('');
+        setProfileFuel('Petrol');
+        setProfilePlate('');
+      }
+    }
+  };
+
+  const handleSetDefaultVehicle = (id) => {
+    const updatedVehicles = vehicles.map(v => ({
+      ...v,
+      isDefault: v.id === id
+    }));
+    onSaveProfile(updatedVehicles);
+  };
+
+  // Location Proximity Action
   const handleGpsSearch = () => {
-    setUserLocation({
-      type: 'gps',
-      lat: 28.625, // Mock Sector 62 Noida
-      lng: 77.370
-    });
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          type: 'gps',
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      },
+      (error) => {
+        console.error("GPS retrieval error:", error);
+        alert("GPS permission denied or unavailable. Falling back to Noida mock center.");
+        setUserLocation({
+          type: 'gps',
+          lat: 28.625,
+          lng: 77.370
+        });
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
   };
 
   const handlePincodeSearch = (e) => {
@@ -165,21 +369,33 @@ export default function CustomerPortal({
     if (!selectedDate || !selectedTime) return;
 
     let finalVehicle = '';
-    if (useProfileVehicle && profile?.make) {
-      finalVehicle = `${profile.make} ${profile.model} (${profile.fuelType})`;
+    let finalFuel = '';
+    let finalPlate = '';
+
+    if (useProfileVehicle && selectedBookVehId !== 'manual') {
+      const activeVeh = vehicles.find(v => v.id === selectedBookVehId);
+      if (activeVeh) {
+        finalVehicle = `${activeVeh.make} ${activeVeh.model}`;
+        finalFuel = activeVeh.fuelType;
+        finalPlate = activeVeh.licensePlate;
+      }
     } else {
-      if (!bookMake || !bookModel) {
-        alert("Please select vehicle Make and Model.");
+      if (!bookMake || !bookModel || !bookPlate) {
+        alert("Please select manual vehicle Make, Model, and License Plate.");
         return;
       }
       finalVehicle = `${bookMake} ${bookModel}`;
+      finalFuel = bookFuel;
+      finalPlate = bookPlate;
     }
 
     const selectedDealer = PILOT_DEALERS.find(d => d.id === selectedDealerId);
 
     onScheduleAppointment({
       customerName: appointment ? appointment.customerName : (profile?.customerName || 'Sarah Jenkins'),
-      vehicle: finalVehicle,
+      vehicle: `${finalVehicle} (${finalFuel})`,
+      fuelType: finalFuel,
+      licensePlate: finalPlate,
       service: selectedService,
       dealerName: selectedDealer ? selectedDealer.name : PILOT_DEALERS[0].name,
       pickupDropoff: pickupDropoff,
@@ -190,6 +406,7 @@ export default function CustomerPortal({
 
     setBookMake('');
     setBookModel('');
+    setBookPlate('');
     setPickupAddress('');
     setPickupDropoff(false);
     setActiveTab('status');
@@ -201,7 +418,7 @@ export default function CustomerPortal({
     // Header Branding
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.setTextColor(225, 29, 72); // Rose-500
+    doc.setTextColor(225, 29, 72); 
     doc.text("SERVICE PROOF", 20, 25);
     
     doc.setFontSize(10);
@@ -232,25 +449,27 @@ export default function CustomerPortal({
     doc.text(`Name: ${app.customerName}`, 110, 58);
     doc.text(`Vehicle: ${app.vehicle}`, 110, 64);
     
-    // Retrieve plate and fuel details from app or saved profile
-    const fuel = app.fuelType || (profile?.customerName === app.customerName && profile?.fuelType) || "N/A";
-    const plate = app.licensePlate || (profile?.customerName === app.customerName && profile?.licensePlate) || "N/A";
+    // Plate & Fuel info
+    const fuel = app.fuelType || "N/A";
+    const plate = app.licensePlate || "N/A";
     doc.text(`Fuel Type: ${fuel} | Plate: ${plate}`, 110, 70);
     
     const selectedDealer = app.dealerName || "Maruti Suzuki Sector 63 Noida Hub";
+    const dealerInfo = PILOT_DEALERS.find(d => d.name === selectedDealer) || PILOT_DEALERS[0];
     doc.text(`Servicing Hub: ${selectedDealer}`, 20, 78);
+    doc.text(`Address: ${dealerInfo.address}`, 20, 84);
     
-    doc.line(20, 84, 190, 84);
+    doc.line(20, 90, 190, 90);
     
     // Invoice Table Headers
     doc.setFont("helvetica", "bold");
-    doc.text("Service Item / Repair Description", 20, 94);
-    doc.text("Status", 130, 94);
-    doc.text("Cost (INR)", 165, 94);
-    doc.line(20, 98, 190, 98);
+    doc.text("Service Item / Repair Description", 20, 100);
+    doc.text("Status", 130, 100);
+    doc.text("Cost (INR)", 165, 100);
+    doc.line(20, 104, 190, 104);
     
     doc.setFont("helvetica", "normal");
-    let y = 106;
+    let y = 112;
     
     // 1. Base Service Package
     doc.text(app.service, 20, y);
@@ -318,9 +537,8 @@ export default function CustomerPortal({
   };
 
   // Group recommendations
-  const recs = appointment?.recommendations || [];
-  const pendingRecs = recs.filter(r => r.status === 'pending');
-  const approvedRecs = recs.filter(r => r.status === 'approved');
+  const activeRecs = appointment?.recommendations || [];
+  const pendingRecs = activeRecs.filter(r => r.status === 'pending');
 
   // Completed history list
   const completedAppointments = allCustomerAppointments.filter(a => a.status === 'ready');
@@ -426,7 +644,7 @@ export default function CustomerPortal({
               activeTab === 'profile' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
-            Profile
+            Profile ({vehicles.length})
           </button>
         </div>
       </div>
@@ -495,6 +713,9 @@ export default function CustomerPortal({
                     <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono">Vehicle Name</span>
                     <h4 className="text-sm font-bold font-mono">{appointment.vehicle}</h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Dealer: {appointment.dealerName || PILOT_DEALERS[0].name}</p>
+                    {appointment.licensePlate && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-0.5">Plate No: {appointment.licensePlate}</p>
+                    )}
                   </div>
                   <div className="mt-2 sm:mt-0 text-left sm:text-right">
                     <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono">Current Estimate</span>
@@ -613,9 +834,9 @@ export default function CustomerPortal({
                   Review the items and make remote selections (OEM-mandatory vs. optional upgrades).
                 </p>
 
-                {recs.length > 0 ? (
+                {activeRecs.length > 0 ? (
                   <div className="space-y-4">
-                    {recs.map((rec) => (
+                    {activeRecs.map((rec) => (
                       <div key={rec.id} className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-3">
                         <div className="flex justify-between items-start">
                           <div>
@@ -686,234 +907,292 @@ export default function CustomerPortal({
 
       {/* 2. SCHEDULE TAB */}
       {activeTab === 'schedule' && (
-        <div className="glass-card max-w-xl mx-auto text-slate-800 dark:text-slate-200">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-rose-500">
-            <Calendar className="h-5 w-5" />
-            Book a Service Appointment
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Configure vehicle, select package, choose proximity dealer, and book your service.
-          </p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
+          {/* Booking Inputs */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="glass-card text-slate-800 dark:text-slate-200">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-rose-500">
+                <Calendar className="h-5 w-5" />
+                Book a Service Appointment
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                Configure vehicle, select package, choose proximity dealer, and book your service.
+              </p>
 
-          <form onSubmit={handleScheduleSubmit} className="space-y-6 text-left">
-            
-            {/* Vehicle Model Selector */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-4">
-              <h3 className="font-bold text-sm flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
-                <Wrench className="h-4 w-4 text-rose-500" /> Vehicle Information
-              </h3>
-              
-              {profile?.make && (
-                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200 dark:border-slate-700">
-                  <input
-                    type="checkbox"
-                    id="useProfileCheck"
-                    checked={useProfileVehicle}
-                    onChange={(e) => setUseProfileVehicle(e.target.checked)}
-                    className="w-4 h-4 text-rose-500 focus:ring-rose-500 rounded cursor-pointer"
-                  />
-                  <label htmlFor="useProfileCheck" className="text-xs font-semibold cursor-pointer text-slate-700 dark:text-slate-300">
-                    Use saved profile vehicle: <span className="text-rose-500 font-mono">{profile.make} {profile.model} ({profile.fuelType})</span>
+              <form onSubmit={handleScheduleSubmit} className="space-y-6">
+                
+                {/* Vehicle Selection */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                  <h3 className="font-bold text-sm flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                    <Wrench className="h-4 w-4 text-rose-500" /> Vehicle Choice
+                  </h3>
+                  
+                  {vehicles.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400">
+                        Choose Saved Vehicle
+                      </label>
+                      <select
+                        value={selectedBookVehId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedBookVehId(val);
+                          setUseProfileVehicle(val !== 'manual');
+                        }}
+                        className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                      >
+                        {vehicles.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.make} {v.model} (${v.fuelType}) [${v.licensePlate}] ${v.isDefault ? '(Default)' : ''}
+                          </option>
+                        ))}
+                        <option value="manual">-- Book for a Different Vehicle --</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {(!useProfileVehicle || vehicles.length === 0) && (
+                    <div className="space-y-4 animate-fade-in">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                            Select Make
+                          </label>
+                          <select 
+                            value={bookMake}
+                            onChange={(e) => setBookMake(e.target.value)}
+                            required={!useProfileVehicle}
+                            className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                          >
+                            <option value="">-- Choose Make --</option>
+                            {Object.keys(INDIAN_VEHICLES).map(make => (
+                              <option key={make} value={make}>{make}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                            Select Model
+                          </label>
+                          <select 
+                            value={bookModel}
+                            onChange={(e) => setBookModel(e.target.value)}
+                            required={!useProfileVehicle}
+                            disabled={!bookMake}
+                            className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none disabled:opacity-50 text-slate-800 dark:text-slate-100"
+                          >
+                            <option value="">-- Choose Model --</option>
+                            {bookModels.map(model => (
+                              <option key={model} value={model}>{model}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                            Fuel Type
+                          </label>
+                          <select 
+                            value={bookFuel}
+                            onChange={(e) => setBookFuel(e.target.value)}
+                            required={!useProfileVehicle}
+                            className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                          >
+                            <option value="Petrol">Petrol</option>
+                            <option value="Diesel">Diesel</option>
+                            <option value="CNG">CNG</option>
+                            <option value="EV">EV</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                            License Plate
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. MH-12-AB-1234"
+                            value={bookPlate}
+                            onChange={e => setBookPlate(e.target.value.toUpperCase())}
+                            required={!useProfileVehicle}
+                            className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100 font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Service Package Selector */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                    Service Package
                   </label>
-                </div>
-              )}
-
-              {(!useProfileVehicle || !profile?.make) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in">
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                      Select Make
-                    </label>
-                    <select 
-                      value={bookMake}
-                      onChange={(e) => setBookMake(e.target.value)}
-                      required={!useProfileVehicle}
-                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-                    >
-                      <option value="">-- Choose Make --</option>
-                      {Object.keys(INDIAN_VEHICLES).map(make => (
-                        <option key={make} value={make}>{make}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                      Select Model
-                    </label>
-                    <select 
-                      value={bookModel}
-                      onChange={(e) => setBookModel(e.target.value)}
-                      required={!useProfileVehicle}
-                      disabled={!bookMake}
-                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none disabled:opacity-50 text-slate-800 dark:text-slate-100"
-                    >
-                      <option value="">-- Choose Model --</option>
-                      {bookModels.map(model => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Service Package Selector */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-3">
-              <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                Service Package
-              </label>
-              <select 
-                value={selectedService}
-                onChange={(e) => setSelectedService(e.target.value)}
-                className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-              >
-                <option value="General Service">General Service Package</option>
-                <option value="Specific Repair">Specific Repair Diagnostic</option>
-              </select>
-            </div>
-
-            {/* Dealer Locator */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-4">
-              <h3 className="font-bold text-sm flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
-                <MapPin className="h-4 w-4 text-rose-500" /> Dealer Locator
-              </h3>
-              
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Enter 6-digit PIN (e.g. 201301)"
-                    value={pinCode}
-                    maxLength={6}
-                    onChange={e => setPinCode(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none"
-                  />
-                  <button 
-                    type="button"
-                    onClick={handlePincodeSearch}
-                    className="btn-secondary py-2 px-3 text-xs whitespace-nowrap"
+                  <select 
+                    value={selectedService}
+                    onChange={(e) => setSelectedService(e.target.value)}
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
                   >
-                    Search PIN
-                  </button>
+                    <option value="General Service">General Service Package</option>
+                    <option value="Specific Repair">Specific Repair Diagnostic</option>
+                  </select>
                 </div>
-                <button 
-                  type="button"
-                  onClick={handleGpsSearch}
-                  className="btn-secondary py-2 px-3 text-xs flex items-center gap-1 justify-center whitespace-nowrap"
-                >
-                  <Compass className="h-3.5 w-3.5" /> Use GPS
-                </button>
-              </div>
 
-              <div>
-                <span className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                  Select Workshop ({userLocation.type !== 'default' ? 'Sorted by Proximity' : 'Default List'})
-                </span>
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {sortedDealers.map(dealer => (
-                    <div 
-                      key={dealer.id}
-                      onClick={() => setSelectedDealerId(dealer.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex justify-between items-center ${
-                        selectedDealerId === dealer.id
-                          ? 'border-rose-500 bg-rose-500/5 dark:bg-rose-500/10'
-                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                {/* Dealer Locator */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                  <h3 className="font-bold text-sm flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                    <MapPin className="h-4 w-4 text-rose-500" /> Dealer Selection
+                  </h3>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex-1 flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Enter 6-digit PIN code"
+                        value={pinCode}
+                        maxLength={6}
+                        onChange={e => setPinCode(e.target.value.replace(/\D/g, ''))}
+                        className="flex-1 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none"
+                      />
+                      <button 
+                        type="button"
+                        onClick={handlePincodeSearch}
+                        className="btn-secondary py-2 px-3 text-xs whitespace-nowrap"
+                      >
+                        Search PIN
+                      </button>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={handleGpsSearch}
+                      className="btn-secondary py-2 px-3 text-xs flex items-center gap-1 justify-center whitespace-nowrap"
+                    >
+                      <Compass className="h-3.5 w-3.5 animate-spin-slow" /> Use GPS
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {sortedDealers.map(dealer => (
+                      <div 
+                        key={dealer.id}
+                        onClick={() => setSelectedDealerId(dealer.id)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex justify-between items-center ${
+                          selectedDealerId === dealer.id
+                            ? 'border-rose-500 bg-rose-500/5 dark:bg-rose-500/10'
+                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <div>
+                          <span className="font-bold text-xs block text-slate-800 dark:text-slate-200">{dealer.name}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">{dealer.address}</span>
+                        </div>
+                        {userLocation.type !== 'default' && (
+                          <span className="text-xs font-mono font-bold text-rose-500 pl-2 whitespace-nowrap">
+                            {dealer.distance} km
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pick-up and Drop-off */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">Pick-up & Drop-off</h4>
+                      <p className="text-xs text-slate-400">Doorstep vehicle logistics managed by verified pilot dealer.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPickupDropoff(!pickupDropoff)}
+                      className={`w-12 h-6 rounded-full p-0.5 transition-colors relative focus:outline-none ${
+                        pickupDropoff ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
                       }`}
                     >
-                      <div>
-                        <span className="font-bold text-xs block text-slate-800 dark:text-slate-200">{dealer.name}</span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500">{dealer.address}</span>
-                      </div>
-                      {userLocation.type !== 'default' && (
-                        <span className="text-xs font-mono font-bold text-rose-500 pl-2 whitespace-nowrap">
-                          {dealer.distance} km
-                        </span>
-                      )}
+                      <div 
+                        className={`bg-white w-5 h-5 rounded-full shadow transform transition-transform ${
+                          pickupDropoff ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  
+                  {pickupDropoff && (
+                    <div className="animate-fade-in text-left">
+                      <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                        Address
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={pickupAddress}
+                        onChange={(e) => setPickupAddress(e.target.value)}
+                        placeholder="Type address for vehicle collection..."
+                        required={pickupDropoff}
+                        className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none"
+                      />
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            </div>
 
-            {/* Pick-up and Drop-off option */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">Pick-up & Drop-off Service</h4>
-                  <p className="text-xs text-slate-400">Convenient vehicle pick-up and drop-off at your location.</p>
+                {/* Date & Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                      Select Date
+                    </label>
+                    <input 
+                      type="date" 
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                      Select Time
+                    </label>
+                    <select 
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                    >
+                      <option value="">Select Time Slot</option>
+                      <option value="09:00 AM">09:00 AM</option>
+                      <option value="11:30 AM">11:30 AM</option>
+                      <option value="02:00 PM">02:00 PM</option>
+                      <option value="04:30 PM">04:30 PM</option>
+                    </select>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setPickupDropoff(!pickupDropoff)}
-                  className={`w-12 h-6 rounded-full p-0.5 transition-colors relative focus:outline-none ${
-                    pickupDropoff ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'
-                  }`}
+
+                <button 
+                  type="submit" 
+                  className="w-full btn-primary justify-center py-3.5 font-bold uppercase text-xs tracking-wider"
                 >
-                  <div 
-                    className={`bg-white w-5 h-5 rounded-full shadow transform transition-transform ${
-                      pickupDropoff ? 'translate-x-6' : 'translate-x-0'
-                    }`}
-                  />
+                  Confirm Appointment Booking
                 </button>
-              </div>
+              </form>
+            </div>
+          </div>
+
+          {/* Interactive Map Visualizer */}
+          <div className="space-y-6">
+            <div className="glass-card space-y-4">
+              <h3 className="font-bold text-sm flex items-center gap-1.5 text-slate-800 dark:text-slate-100">
+                <Compass className="h-4 w-4 text-rose-500" /> Proximity Map Visualizer
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Live interactive workshop navigation. Centers on your selected pilot dealer.
+              </p>
               
-              {pickupDropoff && (
-                <div className="animate-fade-in text-left">
-                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                    Pick-up & Drop-off Address
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={pickupAddress}
-                    onChange={(e) => setPickupAddress(e.target.value)}
-                    placeholder="Enter complete address..."
-                    required={pickupDropoff}
-                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Date & Time Selectors */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                  Select Date
-                </label>
-                <input 
-                  type="date" 
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-                />
-              </div>
-              <div>
-                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                  Select Time
-                </label>
-                <select 
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-                >
-                  <option value="">Select Time Slot</option>
-                  <option value="09:00 AM">09:00 AM</option>
-                  <option value="11:30 AM">11:30 AM</option>
-                  <option value="02:00 PM">02:00 PM</option>
-                  <option value="04:30 PM">04:30 PM</option>
-                </select>
+              <div className="h-80 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative" style={{ zIndex: 1 }}>
+                <div ref={mapRef} className="w-full h-full bg-slate-100 dark:bg-slate-900" />
               </div>
             </div>
-
-            <button 
-              type="submit" 
-              className="w-full btn-primary justify-center mt-6 py-3 font-bold text-sm uppercase tracking-wider"
-            >
-              Confirm Appointment Booking
-            </button>
-          </form>
+          </div>
         </div>
       )}
 
@@ -933,14 +1212,14 @@ export default function CustomerPortal({
               {completedAppointments.map(app => (
                 <div 
                   key={app.id} 
-                  className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-left"
+                  className="p-4 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-left"
                 >
                   <div className="flex-1 space-y-1">
                     <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 border border-emerald-500/20">
                       Completed
                     </span>
                     <h4 className="font-bold text-sm pt-1 text-slate-800 dark:text-slate-200">{app.service}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{app.vehicle}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{app.vehicle}</p>
                     <p className="text-xs text-slate-400 dark:text-slate-500">{app.dealerName || PILOT_DEALERS[0].name}</p>
                     
                     <div className="flex gap-4 mt-2 text-[10px] font-mono text-slate-400">
@@ -969,90 +1248,193 @@ export default function CustomerPortal({
 
       {/* 4. PROFILE TAB */}
       {activeTab === 'profile' && (
-        <div className="glass-card max-w-xl mx-auto text-slate-800 dark:text-slate-200">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2 text-rose-500">
-            <User className="h-5 w-5" />
-            Customer & Vehicle Profile
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Register your vehicle details here to pre-populate booking parameters and link stamps.
-          </p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
+          {/* Active Fleet List */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="glass-card text-slate-800 dark:text-slate-200">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-rose-500">
+                <Wrench className="h-5 w-5" /> Saved Vehicle Fleet (${vehicles.length})
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                Register multiple vehicles to manage maintenance stamps, link service history passports, and speed up bookings.
+              </p>
 
-          <form onSubmit={handleProfileSubmit} className="space-y-4 text-left">
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                Vehicle Brand / Make
-              </label>
-              <select 
-                value={profileMake}
-                onChange={(e) => setProfileMake(e.target.value)}
-                required
-                className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-              >
-                <option value="">-- Choose Make --</option>
-                {Object.keys(INDIAN_VEHICLES).map(make => (
-                  <option key={make} value={make}>{make}</option>
-                ))}
-              </select>
+              {vehicles.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {vehicles.map(veh => (
+                    <div 
+                      key={veh.id}
+                      className={`p-4 rounded-xl border relative transition-all flex flex-col justify-between h-40 ${
+                        veh.isDefault 
+                          ? 'border-rose-500 bg-rose-500/5 dark:bg-rose-500/10'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/10'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <span className="font-bold text-sm block text-slate-800 dark:text-slate-100">
+                            {veh.make} {veh.model}
+                          </span>
+                          {veh.isDefault && (
+                            <span className="text-[9px] font-bold font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded border border-rose-500/20">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 block mt-1 font-mono">
+                          Plate: {veh.licensePlate}
+                        </span>
+                        <span className="text-xs text-slate-400 block mt-0.5">
+                          Fuel: {veh.fuelType}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2 items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3 mt-3">
+                        {!veh.isDefault ? (
+                          <button
+                            onClick={() => handleSetDefaultVehicle(veh.id)}
+                            className="text-[10px] font-bold text-rose-500 hover:underline"
+                          >
+                            Set Default
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 font-mono">Active default</span>
+                        )}
+
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleEditVehicle(veh)}
+                            title="Edit Vehicle Specs"
+                            className="text-slate-400 hover:text-rose-500 transition-colors"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteVehicle(veh.id)}
+                            title="Delete Vehicle"
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                  <User className="h-10 w-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No Vehicles Registered</p>
+                  <p className="text-xs mt-1 text-slate-500">Your fleet is empty. Use the builder on the right to register your first vehicle.</p>
+                </div>
+              )}
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                Vehicle Model
-              </label>
-              <select 
-                value={profileModel}
-                onChange={(e) => setProfileModel(e.target.value)}
-                required
-                disabled={!profileMake}
-                className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none disabled:opacity-50 text-slate-800 dark:text-slate-100"
-              >
-                <option value="">-- Choose Model --</option>
-                {profileModels.map(model => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
+          {/* Add / Edit Form */}
+          <div className="space-y-6">
+            <div className="glass-card text-slate-800 dark:text-slate-200">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-rose-500">
+                {editingVehicleId ? <Edit3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+                {editingVehicleId ? 'Modify Vehicle' : 'Register Vehicle'}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
+                {editingVehicleId ? 'Update specs and registration details for this vehicle.' : 'Add details to build a new vehicle profile stamp.'}
+              </p>
+
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                    Vehicle Brand / Make
+                  </label>
+                  <select 
+                    value={profileMake}
+                    onChange={(e) => setProfileMake(e.target.value)}
+                    required
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">-- Choose Make --</option>
+                    {Object.keys(INDIAN_VEHICLES).map(make => (
+                      <option key={make} value={make}>{make}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                    Vehicle Model
+                  </label>
+                  <select 
+                    value={profileModel}
+                    onChange={(e) => setProfileModel(e.target.value)}
+                    required
+                    disabled={!profileMake}
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none disabled:opacity-50 text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="">-- Choose Model --</option>
+                    {profileModels.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                    Fuel Type
+                  </label>
+                  <select 
+                    value={profileFuel}
+                    onChange={(e) => setProfileFuel(e.target.value)}
+                    required
+                    className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
+                  >
+                    <option value="Petrol">Petrol</option>
+                    <option value="Diesel">Diesel</option>
+                    <option value="CNG">CNG</option>
+                    <option value="EV">EV (Electric Vehicle)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                    License Plate Number
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. MH-12-AB-1234"
+                    value={profilePlate}
+                    onChange={(e) => setProfilePlate(e.target.value.toUpperCase())}
+                    required
+                    className="w-full px-4 py-2 bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="submit" 
+                    className="flex-1 btn-primary justify-center"
+                  >
+                    {editingVehicleId ? 'Update Vehicle' : 'Add Vehicle'}
+                  </button>
+                  {editingVehicleId && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setEditingVehicleId(null);
+                        setProfileMake('');
+                        setProfileModel('');
+                        setProfileFuel('Petrol');
+                        setProfilePlate('');
+                      }}
+                      className="btn-secondary px-4 justify-center"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
             </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                Fuel Type
-              </label>
-              <select 
-                value={profileFuel}
-                onChange={(e) => setProfileFuel(e.target.value)}
-                required
-                className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none text-slate-800 dark:text-slate-100"
-              >
-                <option value="">-- Select Fuel --</option>
-                <option value="Petrol">Petrol</option>
-                <option value="Diesel">Diesel</option>
-                <option value="CNG">CNG</option>
-                <option value="EV">EV (Electric Vehicle)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
-                License Plate Number
-              </label>
-              <input 
-                type="text" 
-                placeholder="e.g. MH-12-AB-1234 or DL-3C-CK-5678"
-                value={profilePlate}
-                onChange={(e) => setProfilePlate(e.target.value.toUpperCase())}
-                required
-                className="w-full px-4 py-2 bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none font-mono"
-              />
-            </div>
-
-            <button 
-              type="submit" 
-              className="w-full btn-primary justify-center mt-6"
-            >
-              Save Profile Details
-            </button>
-          </form>
+          </div>
         </div>
       )}
 

@@ -355,6 +355,8 @@ export default function App() {
         id: id,
         customerName: newApp.customerName || 'John Doe',
         vehicle: newApp.vehicle,
+        fuelType: newApp.fuelType || '',
+        licensePlate: newApp.licensePlate || '',
         service: newApp.service,
         dealerName: newApp.dealerName || '',
         pickupDropoff: newApp.pickupDropoff || false,
@@ -376,14 +378,11 @@ export default function App() {
     }
   };
 
-  // Save Customer Profile
-  const handleSaveProfile = async (customerName, profileData) => {
+  // Save Customer Profile Vehicles List
+  const handleSaveProfile = async (customerName, vehiclesList) => {
     try {
       await setDoc(doc(db, "profiles", customerName), {
-        make: profileData.make || '',
-        model: profileData.model || '',
-        fuelType: profileData.fuelType || '',
-        licensePlate: profileData.licensePlate || ''
+        vehicles: vehiclesList
       });
     } catch (err) {
       console.error("Firestore SaveProfile error:", err);
@@ -422,13 +421,30 @@ export default function App() {
         const customerApps = appointments.filter(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
         const currentCustApp = appointments.find(a => a.id === selectedCustAppId) || customerApps[0];
         const activeCustomerName = currentCustApp?.customerName || 'Sarah Jenkins';
-        const activeProfile = profiles.find(p => p.customerName === activeCustomerName) || {
+        
+        const rawProfile = profiles.find(p => p.customerName === activeCustomerName) || {
           customerName: activeCustomerName,
-          make: '',
-          model: '',
-          fuelType: '',
-          licensePlate: ''
+          vehicles: []
         };
+
+        // Backward compatibility: Convert old single-vehicle profile to vehicles array
+        const customerVehicles = rawProfile.vehicles || [];
+        if (customerVehicles.length === 0 && rawProfile.make) {
+          customerVehicles.push({
+            id: 'legacy-car',
+            make: rawProfile.make,
+            model: rawProfile.model,
+            fuelType: rawProfile.fuelType,
+            licensePlate: rawProfile.licensePlate,
+            isDefault: true
+          });
+        }
+
+        const activeProfile = {
+          customerName: activeCustomerName,
+          vehicles: customerVehicles
+        };
+
         return (
           <CustomerPortal 
             appointment={currentCustApp} 
@@ -438,7 +454,7 @@ export default function App() {
             onDeclineRecommendation={handleDeclineRecommendation}
             onScheduleAppointment={handleScheduleAppointment}
             profile={activeProfile}
-            onSaveProfile={(pData) => handleSaveProfile(activeCustomerName, pData)}
+            onSaveProfile={(vList) => handleSaveProfile(activeCustomerName, vList)}
           />
         );
       case 'advisor':
