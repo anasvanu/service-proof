@@ -32,6 +32,7 @@ export default function App() {
   
   const [appointments, setAppointments] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCustAppId, setSelectedCustAppId] = useState('');
 
@@ -168,9 +169,21 @@ export default function App() {
       console.error("Messages listener error:", err);
     });
 
+    // Listen for profiles
+    const unsubscribeProfiles = onSnapshot(collection(db, "profiles"), (snapshot) => {
+      const profs = [];
+      snapshot.forEach((doc) => {
+        profs.push({ customerName: doc.id, ...doc.data() });
+      });
+      setProfiles(profs);
+    }, (err) => {
+      console.error("Profiles listener error:", err);
+    });
+
     return () => {
       unsubscribeAppointments();
       unsubscribeMessages();
+      unsubscribeProfiles();
     };
   }, []);
 
@@ -336,15 +349,20 @@ export default function App() {
   const handleScheduleAppointment = async (newApp) => {
     try {
       const id = `ro-${Date.now()}`;
+      // General Service base cost is ₹3,500. Specific Repair is ₹2,000.
+      const baseCost = newApp.service === 'General Service' ? 3500 : 2000;
       const formattedApp = {
         id: id,
         customerName: newApp.customerName || 'John Doe',
         vehicle: newApp.vehicle,
         service: newApp.service,
+        dealerName: newApp.dealerName || '',
+        pickupDropoff: newApp.pickupDropoff || false,
+        pickupAddress: newApp.pickupAddress || '',
         date: newApp.date,
         time: newApp.time,
         status: 'scheduled',
-        estimatedCost: newApp.service.includes('Advanced') ? 7500 : newApp.service.includes('Braking') ? 12500 : 3500,
+        estimatedCost: baseCost,
         inspection: null,
         recommendations: [],
         techSignature: '',
@@ -355,6 +373,20 @@ export default function App() {
       setSelectedCustAppId(id);
     } catch (err) {
       console.error("Firestore ScheduleAppointment error:", err);
+    }
+  };
+
+  // Save Customer Profile
+  const handleSaveProfile = async (customerName, profileData) => {
+    try {
+      await setDoc(doc(db, "profiles", customerName), {
+        make: profileData.make || '',
+        model: profileData.model || '',
+        fuelType: profileData.fuelType || '',
+        licensePlate: profileData.licensePlate || ''
+      });
+    } catch (err) {
+      console.error("Firestore SaveProfile error:", err);
     }
   };
 
@@ -389,6 +421,14 @@ export default function App() {
       case 'customer':
         const customerApps = appointments.filter(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
         const currentCustApp = appointments.find(a => a.id === selectedCustAppId) || customerApps[0];
+        const activeCustomerName = currentCustApp?.customerName || 'Sarah Jenkins';
+        const activeProfile = profiles.find(p => p.customerName === activeCustomerName) || {
+          customerName: activeCustomerName,
+          make: '',
+          model: '',
+          fuelType: '',
+          licensePlate: ''
+        };
         return (
           <CustomerPortal 
             appointment={currentCustApp} 
@@ -397,6 +437,8 @@ export default function App() {
             onApproveRecommendation={handleApproveRecommendation}
             onDeclineRecommendation={handleDeclineRecommendation}
             onScheduleAppointment={handleScheduleAppointment}
+            profile={activeProfile}
+            onSaveProfile={(pData) => handleSaveProfile(activeCustomerName, pData)}
           />
         );
       case 'advisor':
