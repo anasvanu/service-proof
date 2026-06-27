@@ -689,53 +689,61 @@ export default function App() {
 
           {/* Navigation Links */}
           <div className="space-y-1">
-            <button 
-              onClick={() => setActiveRole('manager')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
-                activeRole === 'manager' 
-                  ? 'bg-rose-500 text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <BarChart3 className="h-4.5 w-4.5" />
-              {!isCollapsed && <span>Dashboard Overview</span>}
-            </button>
+            {currentUser && currentUser.role === 'manager' && (
+              <button 
+                onClick={() => setActiveRole('manager')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
+                  activeRole === 'manager' 
+                    ? 'bg-rose-500 text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <BarChart3 className="h-4.5 w-4.5" />
+                {!isCollapsed && <span>Dashboard Overview</span>}
+              </button>
+            )}
             
-            <button 
-              onClick={() => setActiveRole('advisor')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
-                activeRole === 'advisor' 
-                  ? 'bg-rose-500 text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <Users className="h-4.5 w-4.5" />
-              {!isCollapsed && <span>Advisor Desk</span>}
-            </button>
+            {currentUser && currentUser.role === 'advisor' && (
+              <button 
+                onClick={() => setActiveRole('advisor')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
+                  activeRole === 'advisor' 
+                    ? 'bg-rose-500 text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Users className="h-4.5 w-4.5" />
+                {!isCollapsed && <span>Advisor Desk</span>}
+              </button>
+            )}
 
-            <button 
-              onClick={() => setActiveRole('technician')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
-                activeRole === 'technician' 
-                  ? 'bg-rose-500 text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <Wrench className="h-4.5 w-4.5" />
-              {!isCollapsed && <span>Technician Workbench</span>}
-            </button>
+            {currentUser && currentUser.role === 'technician' && (
+              <button 
+                onClick={() => setActiveRole('technician')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
+                  activeRole === 'technician' 
+                    ? 'bg-rose-500 text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <Wrench className="h-4.5 w-4.5" />
+                {!isCollapsed && <span>Technician Workbench</span>}
+              </button>
+            )}
 
-            <button 
-              onClick={() => setActiveRole('customer')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
-                activeRole === 'customer' 
-                  ? 'bg-rose-500 text-white shadow-sm' 
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
-              }`}
-            >
-              <User className="h-4.5 w-4.5" />
-              {!isCollapsed && <span>Customer Portal</span>}
-            </button>
+            {currentUser && currentUser.role === 'customer' && (
+              <button 
+                onClick={() => setActiveRole('customer')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-xs font-semibold transition-all ${
+                  activeRole === 'customer' 
+                    ? 'bg-rose-500 text-white shadow-sm' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <User className="h-4.5 w-4.5" />
+                {!isCollapsed && <span>Customer Portal</span>}
+              </button>
+            )}
           </div>
         </div>
 
@@ -793,33 +801,6 @@ export default function App() {
 
           {/* Right Header Navigation */}
           <div className="flex items-center gap-4">
-            {/* Quick switcher buttons */}
-            <div className="hidden sm:flex bg-slate-100 dark:bg-slate-800/40 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-bold">
-              <button 
-                onClick={() => setActiveRole('manager')}
-                className={`px-3 py-1.5 rounded-md transition-all ${activeRole === 'manager' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-400'}`}
-              >
-                Manager
-              </button>
-              <button 
-                onClick={() => setActiveRole('advisor')}
-                className={`px-3 py-1.5 rounded-md transition-all ${activeRole === 'advisor' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-400'}`}
-              >
-                Advisor
-              </button>
-              <button 
-                onClick={() => setActiveRole('technician')}
-                className={`px-3 py-1.5 rounded-md transition-all ${activeRole === 'technician' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-400'}`}
-              >
-                Technician
-              </button>
-              <button 
-                onClick={() => setActiveRole('customer')}
-                className={`px-3 py-1.5 rounded-md transition-all ${activeRole === 'customer' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-400'}`}
-              >
-                Customer
-              </button>
-            </div>
 
             {/* Dark mode switcher toggle */}
             <button 
