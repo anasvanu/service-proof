@@ -666,21 +666,24 @@ export default function App() {
           />
         );
       case 'advisor':
+        const advisorApps = appointments.filter(a => a.dealerName === currentUser?.name);
+        const advisorMessages = messages.filter(m => m.sender === currentUser?.name || m.recipient === currentUser?.name);
         return (
           <AdvisorDashboard 
-            appointments={appointments} 
+            appointments={advisorApps} 
             onAcceptBooking={handleAcceptAndCreateJobCard}
             onRejectBooking={handleRejectBooking}
             onSendMessage={handleSendMessage}
-            messages={messages}
+            messages={advisorMessages}
             mechanics={MOCK_MECHANICS}
             onQcSignOff={handleQcSignOff}
           />
         );
       case 'technician':
+        const techApps = appointments.filter(a => a.assignedMechanic === currentUser?.name);
         return (
           <TechnicianWorkbench 
-            appointments={appointments}
+            appointments={techApps}
             onSubmitInspection={handleSubmitInspection}
             onCompleteRepairs={handleCompleteRepairs}
             onStartInspection={handleStartInspection}
@@ -913,7 +916,7 @@ function AuthPortal({ onLogin }) {
                 onChange={(e) => {
                   const r = e.target.value;
                   setRole(r);
-                  setName(r === 'customer' ? 'Sarah Jenkins' : r === 'technician' ? 'Amit Kumar' : r === 'advisor' ? 'Dealership Advisor' : 'General Manager');
+                  setName(r === 'customer' ? 'Sarah Jenkins' : r === 'technician' ? 'Amit Kumar' : r === 'advisor' ? 'Maruti Suzuki Sector 63 Noida Hub' : 'General Manager');
                 }}
                 className="w-full px-4 py-2.5 bg-[#0b0f19] border border-slate-800 rounded-lg text-sm text-slate-200 focus:outline-none"
               >
@@ -945,6 +948,18 @@ function AuthPortal({ onLogin }) {
                 >
                   <option value="Amit Kumar">Amit Kumar (Noida Sector 63)</option>
                   <option value="Rajesh Sharma">Rajesh Sharma (Connaught Place)</option>
+                </select>
+              ) : role === 'advisor' ? (
+                <select
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-[#0b0f19] border border-slate-800 rounded-lg text-sm text-slate-200 focus:outline-none"
+                >
+                  <option value="Maruti Suzuki Sector 63 Noida Hub">Maruti Suzuki Sector 63 Noida Hub</option>
+                  <option value="Hyundai Care Sector 62 Noida Hub">Hyundai Care Sector 62 Noida Hub</option>
+                  <option value="Mahindra Dealership Hub Delhi">Mahindra Dealership Hub Delhi</option>
+                  <option value="Tata Motors Gurugram Service Center">Tata Motors Gurugram Service Center</option>
+                  <option value="Honda Care Connaught Place">Honda Care Connaught Place</option>
                 </select>
               ) : (
                 <input
