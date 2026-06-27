@@ -447,6 +447,48 @@ export default function App() {
     }
   };
 
+  // Customer final authorization of the estimate
+  const handleAuthorizeRepairs = async (id, signatureName, updatedRecs) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
+
+      const baseCost = targetApp.service === 'General Service' ? 3500 : 2000;
+      const approvedCost = updatedRecs
+        .filter(r => r.status === 'approved')
+        .reduce((acc, r) => acc + r.cost, 0);
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'Approved',
+        recommendations: updatedRecs,
+        estimatedCost: baseCost + approvedCost,
+        customerSignature: signatureName || 'Sarah Jenkins'
+      }, { merge: true });
+
+      await logAuditEvent(id, "Estimate Approved", "Customer", `Authorized repair work with signature: ${signatureName}. Approved: ${updatedRecs.filter(r => r.status === 'approved').map(r => r.service).join(', ') || 'None'}`);
+      await sendNotification(targetApp.customerName, "Estimate Authorized", `Your service estimate has been approved. Repairs are ready to start.`);
+    } catch (err) {
+      console.error("Firestore AuthorizeRepairs error:", err);
+    }
+  };
+
+  // Technician start active repairs
+  const handleStartRepairs = async (id) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'In Progress'
+      }, { merge: true });
+
+      await logAuditEvent(id, "Repairs Started", "Technician", "Technician commenced physical repair operations in the bay.");
+      await sendNotification(targetApp.customerName, "Repairs In Progress", `Work has officially started on your ${targetApp.vehicle}.`);
+    } catch (err) {
+      console.error("Firestore StartRepairs error:", err);
+    }
+  };
+
   // Tech Complete Repairs
   const handleCompleteRepairs = async (id) => {
     try {
@@ -620,6 +662,7 @@ export default function App() {
             currentUser={currentUser}
             setCurrentUser={setCurrentUser}
             notifications={notifications}
+            onAuthorizeRepairs={handleAuthorizeRepairs}
           />
         );
       case 'advisor':
@@ -641,6 +684,7 @@ export default function App() {
             onSubmitInspection={handleSubmitInspection}
             onCompleteRepairs={handleCompleteRepairs}
             onStartInspection={handleStartInspection}
+            onStartRepairs={handleStartRepairs}
           />
         );
       case 'manager':

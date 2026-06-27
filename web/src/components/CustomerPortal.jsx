@@ -76,11 +76,27 @@ export default function CustomerPortal({
   onSaveProfile,
   currentUser,
   setCurrentUser,
-  notifications = []
+  notifications = [],
+  onAuthorizeRepairs
 }) {
   const [activeTab, setActiveTab] = useState('status'); // 'status' | 'schedule' | 'history' | 'profile'
   const [selectedProofItem, setSelectedProofItem] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Estimate approval states
+  const [localRecStatuses, setLocalRecStatuses] = useState({});
+  const [customerSignature, setCustomerSignature] = useState('');
+
+  // Sync recommendation local state
+  useEffect(() => {
+    if (appointment?.recommendations) {
+      const initial = {};
+      appointment.recommendations.forEach(r => {
+        initial[r.id] = r.status || 'pending';
+      });
+      setLocalRecStatuses(initial);
+    }
+  }, [appointment]);
 
   // Profile fleet state
   const [vehicles, setVehicles] = useState(profile?.vehicles || []);
@@ -549,7 +565,7 @@ export default function CustomerPortal({
   const pendingRecs = activeRecs.filter(r => r.status === 'pending');
 
   // Completed history list
-  const completedAppointments = allCustomerAppointments.filter(a => a.status === 'ready');
+  const completedAppointments = allCustomerAppointments.filter(a => a.status === 'Completed');
 
   // Distance sorted dealers list
   const sortedDealers = [...PILOT_DEALERS].map(dealer => {
@@ -878,78 +894,163 @@ export default function CustomerPortal({
 
             {/* Service Recommendations */}
             <div className="space-y-6">
-              <div className="glass-card">
+              <div className="glass-card text-left">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                   <ShieldAlert className="h-5 w-5 text-rose-500" />
-                  Required Approvals
+                  Service Recommendations & Approvals
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                  Review the items and make remote selections (OEM-mandatory vs. optional upgrades).
-                </p>
 
-                {activeRecs.length > 0 ? (
-                  <div className="space-y-4">
-                    {activeRecs.map((rec) => (
-                      <div key={rec.id} className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-3">
-                        <div className="flex justify-between items-start">
+                {appointment.status === 'Estimate Pending' ? (
+                  <>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
+                      Our certified technician recommends the following maintenance items. Review the proof, choose to Approve/Decline, and provide your digital signature to authorize repairs.
+                    </p>
+
+                    {activeRecs.length > 0 ? (
+                      <div className="space-y-4">
+                        {activeRecs.map((rec) => {
+                          const currentStatus = localRecStatuses[rec.id] || 'pending';
+                          return (
+                            <div key={rec.id} className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                              <div className="flex justify-between items-start flex-wrap gap-2">
+                                <div>
+                                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{rec.service}</h4>
+                                  <span className={`inline-block text-[9px] font-mono uppercase px-2 py-0.5 rounded mt-1.5 ${
+                                    rec.category === 'vas' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600' :
+                                    rec.category === 'oem' ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-600' :
+                                    'bg-red-100 dark:bg-red-950/40 text-rose-600'
+                                  }`}>
+                                    {rec.category === 'vas' ? 'Optional Upsell (VAS)' : 
+                                     rec.category === 'oem' ? 'Fixed OEM Schedule' : 'Wear & Tear Repair'}
+                                  </span>
+                                </div>
+                                <span className="font-bold text-sm text-rose-500 font-mono">₹{rec.cost.toLocaleString('en-IN')}</span>
+                              </div>
+
+                              {rec.proofUrl && (
+                                <div className="space-y-1">
+                                  <div className="relative rounded-lg overflow-hidden group border border-slate-200 dark:border-slate-800">
+                                    <img 
+                                      src={rec.proofUrl} 
+                                      alt="Visual Proof" 
+                                      className="w-full h-32 object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex justify-between items-center text-[9px] font-mono text-slate-400 px-1">
+                                    <span>Geo-tag: {rec.lat}, {rec.lng}</span>
+                                    <span>Seal: {rec.seal ? rec.seal.substring(0, 15) : 'N/A'}...</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              <p className="text-xs text-slate-500 dark:text-slate-400">{rec.details}</p>
+
+                              <div className="flex gap-2 pt-1">
+                                <button 
+                                  type="button"
+                                  onClick={() => setLocalRecStatuses(prev => ({ ...prev, [rec.id]: 'approved' }))}
+                                  className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                                    currentStatus === 'approved' 
+                                      ? 'bg-emerald-500 text-white shadow-sm' 
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700/80'
+                                  }`}
+                                >
+                                  <ThumbsUp className="h-3.5 w-3.5" /> Approve
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setLocalRecStatuses(prev => ({ ...prev, [rec.id]: 'declined' }))}
+                                  className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                                    currentStatus === 'declined' 
+                                      ? 'bg-rose-500 text-white shadow-sm' 
+                                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700/80'
+                                  }`}
+                                >
+                                  <ThumbsDown className="h-3.5 w-3.5" /> Decline
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Signature Authorization Block */}
+                        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
                           <div>
-                            <h4 className="font-bold text-sm">{rec.service}</h4>
-                            <span className={`inline-block text-[9px] font-mono uppercase px-2 py-0.5 rounded mt-1.5 ${
-                              rec.category === 'vas' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600' : 'bg-red-100 dark:bg-red-950/40 text-rose-600'
-                            }`}>
-                              {rec.category === 'vas' ? 'Optional (VAS)' : 'Required Repair'}
-                            </span>
-                          </div>
-                          <span className="font-bold text-sm text-rose-500 font-mono">₹{rec.cost}</span>
-                        </div>
-
-                        {rec.proofUrl && (
-                          <div className="relative rounded-lg overflow-hidden group">
-                            <img 
-                              src={rec.proofUrl} 
-                              alt="Visual Proof" 
-                              className="w-full h-32 object-cover"
+                            <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">
+                              Customer Digital Signature
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="Type your full name to authorize"
+                              value={customerSignature}
+                              onChange={e => setCustomerSignature(e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-100"
                             />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="text-white text-xs font-semibold flex items-center gap-1.5">
-                                <Camera className="h-4 w-4" /> View HD Proof Image
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!customerSignature) {
+                                alert("Please enter your signature to authorize the estimate.");
+                                return;
+                              }
+                              const updatedRecs = appointment.recommendations.map(r => ({
+                                ...r,
+                                status: localRecStatuses[r.id] || 'pending'
+                              }));
+                              onAuthorizeRepairs(appointment.id, customerSignature, updatedRecs);
+                            }}
+                            className="w-full btn-primary py-3 justify-center text-xs font-bold uppercase tracking-wider"
+                          >
+                            Submit Approvals & Authorize Repairs
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-slate-400">
+                        <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No Pending Approvals</p>
+                        <p className="text-xs mt-1">There are no recommended items currently registered.</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  // Display Read-only authorized list
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                      Estimate authorization contract details:
+                    </p>
+                    
+                    {activeRecs.length > 0 ? (
+                      <div className="space-y-3">
+                        {activeRecs.map((rec) => (
+                          <div key={rec.id} className="p-3 bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800 rounded-xl flex justify-between items-center text-xs">
+                            <div className="text-left">
+                              <span className="font-bold block">{rec.service}</span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5 capitalize">Category: {rec.category}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-bold block text-rose-500 font-mono">₹{rec.cost}</span>
+                              <span className={`inline-block text-[9px] font-bold mt-1 px-2 py-0.5 rounded font-mono ${
+                                rec.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                              }`}>
+                                {rec.status === 'approved' ? 'Approved' : 'Declined'}
                               </span>
                             </div>
                           </div>
-                        )}
+                        ))}
 
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{rec.details}</p>
-
-                        {rec.status === 'pending' ? (
-                          <div className="flex gap-2 mt-2">
-                            <button 
-                              onClick={() => onApproveRecommendation(rec.id)}
-                              className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                            >
-                              <ThumbsUp className="h-3.5 w-3.5" /> Approve
-                            </button>
-                            <button 
-                              onClick={() => onDeclineRecommendation(rec.id)}
-                              className="flex-1 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                            >
-                              <ThumbsDown className="h-3.5 w-3.5" /> Decline
-                            </button>
-                          </div>
-                        ) : (
-                          <div className={`py-1.5 px-3 rounded-lg text-xs font-bold text-center ${
-                            rec.status === 'approved' ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                          }`}>
-                            {rec.status === 'approved' ? '✓ Approved for Service' : '✗ Declined by Owner'}
-                          </div>
-                        )}
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/10 rounded-xl border border-slate-150 dark:border-slate-800 text-xs text-left space-y-1">
+                          <span className="text-[10px] text-slate-400 uppercase font-mono block">Customer Digital Signature</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 block">{appointment.customerSignature || 'Sarah Jenkins'}</span>
+                          <span className="text-[9px] text-slate-400 block font-mono">Verified Authenticity Status: Signed & Authorized</span>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 text-slate-400">
-                    <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No Pending Approvals</p>
-                    <p className="text-xs mt-1 text-slate-500">Your vehicle has no additional recommended repairs.</p>
+                    ) : (
+                      <div className="text-center py-6 text-slate-400 text-xs">
+                        No additional recommendations were made for this service.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

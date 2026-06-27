@@ -15,7 +15,8 @@ export default function TechnicianWorkbench({
   appointments, 
   onSubmitInspection, 
   onCompleteRepairs,
-  onStartInspection
+  onStartInspection,
+  onStartRepairs
 }) {
   const activeROs = appointments.filter(a => a.status !== 'Requested' && a.status !== 'Completed' && a.status !== 'Rejected');
   const [selectedRoId, setSelectedRoId] = useState(activeROs[0]?.id || '');
@@ -401,6 +402,26 @@ export default function TechnicianWorkbench({
               )}
             </div>
 
+            {/* Approved - Start repairs action */}
+            {app.status === 'Approved' && (
+              <div className="glass-card bg-rose-500/5 border-rose-500/10 text-slate-800 dark:text-slate-200">
+                <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                  <Wrench className="h-5 w-5 text-rose-500 animate-bounce" />
+                  Repairs Authorized by Customer
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                  Sarah Jenkins has authorized the estimate using digital signature. Click below to begin physical repair operations.
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => onStartRepairs(app.id)}
+                  className="py-3 px-6 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-lg transition-all text-sm flex items-center gap-2"
+                >
+                  <Play className="h-4 w-4" /> Start Active Repairs
+                </button>
+              </div>
+            )}
+
             {/* Repair Order Complete Action */}
             {app.status === 'In Progress' && (
               <div className="glass-card bg-emerald-500/10 border-emerald-500/20 text-slate-800 dark:text-slate-200">
@@ -412,6 +433,7 @@ export default function TechnicianWorkbench({
                   The customer has authorized the services. Once finished, complete the repair order to notify them.
                 </p>
                 <button 
+                  type="button"
                   onClick={() => onCompleteRepairs(app.id)}
                   className="py-3 px-6 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg transition-all text-sm flex items-center gap-2"
                 >
