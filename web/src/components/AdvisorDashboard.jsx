@@ -14,26 +14,45 @@ import {
   CheckSquare
 } from 'lucide-react';
 
+const PILOT_DEALERS = [
+  { id: "d1", name: "Maruti Suzuki Sector 63 Noida Hub", address: "H-224, Sector 63, Noida, UP", pincode: "201301", lat: 28.627, lng: 77.378 },
+  { id: "d2", name: "Hyundai Care Sector 62 Noida Hub", address: "C-56, Sector 62, Noida, UP", pincode: "201309", lat: 28.622, lng: 77.364 },
+  { id: "d3", name: "Mahindra Dealership Hub Delhi", address: "Okhla Industrial Area Phase III, New Delhi", pincode: "110020", lat: 28.538, lng: 77.271 },
+  { id: "d4", name: "Tata Motors Gurugram Service Center", address: "IDC, Sector 14, Gurugram, Haryana", pincode: "122001", lat: 28.473, lng: 77.042 },
+  { id: "d5", name: "Honda Care Connaught Place", address: "Connaught Place, Radial Road 4, New Delhi", pincode: "110001", lat: 28.630, lng: 77.220 }
+];
+
 export default function AdvisorDashboard({ 
   appointments, 
-  onCheckIn, 
+  onAcceptBooking, 
+  onRejectBooking, 
   onSendMessage, 
   messages,
-  // Helper to trigger QC approval
-  onSyncState
+  mechanics = [],
+  onQcSignOff
 }) {
-  const [activeTab, setActiveTab] = useState('appointments'); // 'appointments' | 'qc' | 'chat'
+  const [activeTab, setActiveTab] = useState('appointments'); // 'appointments' | 'qc' | 'workshop' | 'chat'
   const [chatMessage, setChatMessage] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState(appointments[0]?.customerName || 'John Doe');
   
   // Advisor QC Sign-off state
   const [advisorQcSign, setAdvisorQcSign] = useState('');
 
-  const pendingAppointments = appointments.filter(a => a.status === 'scheduled');
-  const checkedInAppointments = appointments.filter(a => a.status !== 'scheduled');
+  // Job Card Creation Modal state
+  const [checkInApp, setCheckInApp] = useState(null);
+  const [odometer, setOdometer] = useState('15,000 km');
+  const [fuelLevel, setFuelLevel] = useState('50%');
+  const [selectedMechanicId, setSelectedMechanicId] = useState('');
+  const [advisorComments, setAdvisorComments] = useState('');
+
+  // Reject Booking state
+  const [rejectRoId, setRejectRoId] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
+
+  const pendingAppointments = appointments.filter(a => a.status === 'Requested');
+  const checkedInAppointments = appointments.filter(a => a.status !== 'Requested' && a.status !== 'Rejected');
   
-  // Vehicles waiting for QC Check (which in our status represents either in_progress or custom qc state, let's treat vehicles with completed technician work as ready for QC)
-  const qcPendingAppointments = appointments.filter(a => a.status === 'in_progress' || (a.status === 'inspecting' && a.techSignature));
+  const qcPendingAppointments = appointments.filter(a => a.status === 'qc_check');
 
   const handleSendMessageSubmit = (e) => {
     e.preventDefault();
@@ -51,22 +70,9 @@ export default function AdvisorDashboard({
       alert("Please provide Advisor/QC digital signature to verify the repairs.");
       return;
     }
-    // Simulate updating appointments with QC check completed
-    const targetApp = appointments.find(a => a.id === roId);
-    if (targetApp) {
-      targetApp.status = 'ready';
-      targetApp.qcSignature = advisorQcSign;
-      
-      // Send chat notification
-      onSendMessage({
-        sender: 'Advisor',
-        recipient: targetApp.customerName,
-        text: `Hi ${targetApp.customerName}, your vehicle has passed our final quality QC inspection and is ready for pickup!`
-      });
-      
-      setAdvisorQcSign('');
-      alert("Quality Control Sign-off submitted! Vehicle is marked ready.");
-    }
+    onQcSignOff(roId, advisorQcSign);
+    setAdvisorQcSign('');
+    alert("Quality Control Sign-off submitted! Vehicle is marked Completed.");
   };
 
   return (
@@ -93,6 +99,14 @@ export default function AdvisorDashboard({
             }`}
           >
             QC Inspection ({qcPendingAppointments.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('workshop')}
+            className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'workshop' ? 'bg-white dark:bg-slate-700 text-rose-500 shadow-sm' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            Workshop Management
           </button>
           <button 
             onClick={() => setActiveTab('chat')}
@@ -134,7 +148,7 @@ export default function AdvisorDashboard({
           <div>
             <span className="text-xs text-slate-400 dark:text-slate-500 uppercase font-mono block">Active ROs</span>
             <span className="text-2xl font-bold font-mono">
-              {appointments.filter(a => ['inspecting', 'in_progress'].includes(a.status)).length}
+              {appointments.filter(a => ['Accepted', 'Estimate Pending', 'In Progress', 'qc_check'].includes(a.status)).length}
             </span>
           </div>
         </div>
@@ -152,23 +166,76 @@ export default function AdvisorDashboard({
               </h3>
               
               {pendingAppointments.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 space-y-4">
                   {pendingAppointments.map((app) => (
-                    <div key={app.id} className="py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
-                        <h4 className="font-bold">{app.customerName}</h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{app.vehicle} • {app.service}</p>
-                        <div className="flex gap-4 mt-2 text-[11px] font-mono text-slate-400">
-                          <span>Date: {app.date}</span>
-                          <span>Time: {app.time}</span>
+                    <div key={app.id} className="py-4 flex flex-col justify-between items-start gap-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-4">
+                        <div>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-100">{app.customerName}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{app.vehicle} • {app.service}</p>
+                          <div className="flex gap-4 mt-2 text-[11px] font-mono text-slate-400">
+                            <span>Date: {app.date}</span>
+                            <span>Time: {app.time}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setCheckInApp(app);
+                              setOdometer('15,000 km');
+                              setFuelLevel('50%');
+                              setAdvisorComments('Complains of squealing front brakes.');
+                              const matchingMechanics = mechanics.filter(m => app.dealerName ? m.workshopId === (app.dealerName.includes('Maruti') ? 'd1' : app.dealerName.includes('Hyundai') ? 'd2' : app.dealerName.includes('Mahindra') ? 'd3' : app.dealerName.includes('Tata') ? 'd4' : 'd5') : true);
+                              setSelectedMechanicId(matchingMechanics[0]?.id || mechanics[0]?.id || '');
+                            }}
+                            className="btn-primary py-2 px-3 text-xs font-bold flex items-center gap-1"
+                          >
+                            <UserPlus className="h-4 w-4" /> Accept & Job Card
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setRejectRoId(app.id)}
+                            className="btn-secondary py-2 px-3 text-xs font-semibold text-rose-500 hover:text-rose-600 border-rose-500/10"
+                          >
+                            Reject
+                          </button>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => onCheckIn(app.id)}
-                        className="btn-primary py-2 px-4 text-xs font-bold"
-                      >
-                        <UserPlus className="h-3.5 w-3.5" /> Check In
-                      </button>
+
+                      {/* Rejection Form Input inline */}
+                      {rejectRoId === app.id && (
+                        <div className="w-full p-3 bg-red-500/5 border border-rose-500/10 rounded-xl space-y-2 animate-fade-in text-left">
+                          <label className="block text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400">Specify Rejection Reason</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="e.g. Workshop fully booked today"
+                              value={rejectReason}
+                              onChange={e => setRejectReason(e.target.value)}
+                              className="flex-1 px-3 py-1.5 bg-[#0b0f19] border border-slate-700 rounded text-xs text-slate-200"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                onRejectBooking(app.id, rejectReason);
+                                setRejectRoId('');
+                                setRejectReason('');
+                              }}
+                              className="btn-primary bg-rose-500 hover:bg-rose-600 py-1.5 px-3 text-xs font-bold"
+                            >
+                              Confirm Rejection
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => setRejectRoId('')}
+                              className="btn-secondary py-1.5 px-3 text-xs"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -371,6 +438,68 @@ export default function AdvisorDashboard({
         </div>
       )}
 
+      {activeTab === 'workshop' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left animate-fade-in">
+          {/* Pilot Centers List */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="glass-card">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-rose-500">
+                <ShieldCheck className="h-5 w-5" /> Onboarded Pilot Centers
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                Active service workshop locations registered in the pilot network.
+              </p>
+              
+              <div className="space-y-4">
+                {PILOT_DEALERS.map((dealer) => (
+                  <div key={dealer.id} className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl flex justify-between items-start">
+                    <div>
+                      <span className="font-bold text-sm block text-slate-800 dark:text-slate-200">{dealer.name}</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 block mt-0.5">{dealer.address}</span>
+                      <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 font-mono">PIN: {dealer.pincode}</span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-mono">Geo: {dealer.lat}, {dealer.lng}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Mechanic Team Status */}
+          <div className="glass-card">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-rose-500">
+              <Users className="h-5 w-5" /> Workshop Team (Mechanics)
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+              Assigned technician status logs and workload allocation list.
+            </p>
+
+            <div className="space-y-3.5">
+              {mechanics.map((mech) => {
+                const activeJob = appointments.find(a => a.assignedMechanic === mech.name && !['Completed', 'Rejected', 'ready'].includes(a.status));
+                return (
+                  <div key={mech.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-xs block">{mech.name}</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Dealer ID: {mech.workshopId === 'd1' ? 'Sector 63 Noida' : 'Connaught Place'}</span>
+                    </div>
+                    {activeJob ? (
+                      <span className="text-[10px] bg-indigo-500/10 text-indigo-500 font-bold px-2 py-0.5 rounded border border-indigo-500/20 truncate max-w-[120px]" title={`Working on ${activeJob.customerName}`}>
+                        RO: {activeJob.customerName}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-500 font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                        Idle
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'chat' && (
         <div className="glass-card max-w-3xl mx-auto flex flex-col h-[500px]">
           {/* Chat Header */}
@@ -441,6 +570,90 @@ export default function AdvisorDashboard({
               <Send className="h-4 w-4" />
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Job Card Modal */}
+      {checkInApp && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-left" onClick={e => e.stopPropagation()}>
+            <div className="border-b border-slate-200 dark:border-slate-800 pb-3 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <FileText className="h-5 w-5 text-rose-500" /> Create Detailed Job Card
+              </h3>
+              <button onClick={() => setCheckInApp(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold">×</button>
+            </div>
+            
+            <div className="space-y-1.5 text-xs">
+              <span className="text-slate-400 block font-mono">RO ID: {checkInApp.id}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 block text-sm">Customer: {checkInApp.customerName}</span>
+              <span className="text-slate-500 dark:text-slate-400 block font-semibold">Vehicle: {checkInApp.vehicle}</span>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              onAcceptBooking(checkInApp.id, odometer, fuelLevel, selectedMechanicId, advisorComments);
+              setCheckInApp(null);
+            }} className="space-y-4 pt-2">
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">Odometer Reading (km)</label>
+                <input 
+                  type="text" 
+                  value={odometer}
+                  onChange={e => setOdometer(e.target.value)}
+                  placeholder="e.g. 15,200 km"
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">Current Fuel Level</label>
+                <select 
+                  value={fuelLevel}
+                  onChange={e => setFuelLevel(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                >
+                  <option value="Empty">Empty</option>
+                  <option value="25% (Quarter)">25% (Quarter)</option>
+                  <option value="50% (Half)">50% (Half)</option>
+                  <option value="75% (Three-Quarter)">75% (Three-Quarter)</option>
+                  <option value="100% (Full)">100% (Full)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">Allocate Mechanic</label>
+                <select 
+                  value={selectedMechanicId}
+                  onChange={e => setSelectedMechanicId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                >
+                  <option value="">-- Assign Mechanic --</option>
+                  {mechanics.filter(m => checkInApp.dealerName ? m.workshopId === (checkInApp.dealerName.includes('Maruti') ? 'd1' : checkInApp.dealerName.includes('Hyundai') ? 'd2' : checkInApp.dealerName.includes('Mahindra') ? 'd3' : checkInApp.dealerName.includes('Tata') ? 'd4' : 'd5') : true).map(m => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">Advisor Notes / Complaints</label>
+                <textarea 
+                  rows={2}
+                  value={advisorComments}
+                  onChange={e => setAdvisorComments(e.target.value)}
+                  placeholder="Record customer complaints, scratches noticed, etc..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0b0f19] border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="submit" className="flex-1 btn-primary justify-center">Accept & Create Job Card</button>
+                <button type="button" onClick={() => setCheckInApp(null)} className="btn-secondary px-4 justify-center">Cancel</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

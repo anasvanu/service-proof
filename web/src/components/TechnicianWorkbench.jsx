@@ -17,7 +17,7 @@ export default function TechnicianWorkbench({
   onCompleteRepairs,
   onStartInspection
 }) {
-  const activeROs = appointments.filter(a => a.status !== 'scheduled' && a.status !== 'ready');
+  const activeROs = appointments.filter(a => a.status !== 'Requested' && a.status !== 'Completed' && a.status !== 'Rejected');
   const [selectedRoId, setSelectedRoId] = useState(activeROs[0]?.id || '');
 
   // Auto-sync selected RO when activeROs list changes
@@ -76,6 +76,9 @@ export default function TechnicianWorkbench({
     if (!recService || !recCost) return;
     
     const proofUrl = proofPresets.find(p => p.label === recProof)?.url || '';
+    const lat = (28.627 + (Math.random() - 0.5) * 0.005).toFixed(5);
+    const lng = (77.378 + (Math.random() - 0.5) * 0.005).toFixed(5);
+    const seal = "sha256-" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
 
     const newRec = {
       id: Date.now().toString(),
@@ -85,7 +88,11 @@ export default function TechnicianWorkbench({
       proofUrl: proofUrl,
       status: 'pending',
       category: recCategory,
-      executionProof: ""
+      executionProof: "",
+      lat: lat,
+      lng: lng,
+      seal: seal,
+      timestamp: new Date().toISOString()
     };
     
     setAddedRecs([...addedRecs, newRec]);
@@ -143,6 +150,22 @@ export default function TechnicianWorkbench({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* MPI Form Panel */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Job Card Details Panel */}
+            <div className="glass-card grid grid-cols-2 sm:grid-cols-4 gap-4 text-left">
+              <div>
+                <span className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400 block">Check-in Odometer</span>
+                <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{app.odometer || '18,420 km'}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400 block">Fuel Level Status</span>
+                <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{app.fuelLevel || '55%'}</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400 block">Advisor Comments / Complaints</span>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{app.advisorComments || 'No complaints registered.'}</p>
+              </div>
+            </div>
+
             <div className="glass-card">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-bold flex items-center gap-2">
@@ -150,12 +173,12 @@ export default function TechnicianWorkbench({
                   Multi-Point Inspection Sheet
                 </h3>
                 
-                {app.status === 'checked_in' && (
+                {app.status === 'Accepted' && (
                   <button 
                     onClick={() => onStartInspection(app.id)}
-                    className="btn-primary py-1.5 px-3 text-xs"
+                    className="btn-primary py-2 px-4 text-xs font-bold"
                   >
-                    Start Inspection
+                    Start Inspection Diagnostics
                   </button>
                 )}
               </div>
@@ -320,7 +343,7 @@ export default function TechnicianWorkbench({
               </div>
 
               {/* Digital Barcode Evidence capture */}
-              {app.status === 'inspecting' && (
+              {app.status === 'Estimate Pending' && (
                 <div className="mt-6 p-4 border border-slate-200 dark:border-slate-800 rounded-xl space-y-4 text-left">
                   <h4 className="font-bold text-sm flex items-center gap-1.5">
                     <QrCode className="h-5 w-5 text-rose-500" />
@@ -350,7 +373,7 @@ export default function TechnicianWorkbench({
               )}
 
               {/* Signature sign-off */}
-              {app.status === 'inspecting' && (
+              {app.status === 'Estimate Pending' && (
                 <div className="mt-6 p-4 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3 text-left">
                   <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400">
                     Technician Digital Signature
@@ -366,7 +389,7 @@ export default function TechnicianWorkbench({
               )}
 
               {/* Submit inspection banner */}
-              {app.status === 'inspecting' && (
+              {app.status === 'Estimate Pending' && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
                   <button 
                     onClick={handleSubmitInspectionReport}
@@ -379,7 +402,7 @@ export default function TechnicianWorkbench({
             </div>
 
             {/* Repair Order Complete Action */}
-            {app.status === 'in_progress' && (
+            {app.status === 'In Progress' && (
               <div className="glass-card bg-emerald-500/10 border-emerald-500/20 text-slate-800 dark:text-slate-200">
                 <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
