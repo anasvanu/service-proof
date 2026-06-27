@@ -622,9 +622,9 @@ export default function App() {
 
     switch (activeRole) {
       case 'customer':
-        const customerApps = appointments.filter(a => a.customerName === 'Sarah Jenkins' || a.customerName === 'John Doe');
-        const currentCustApp = appointments.find(a => a.id === selectedCustAppId) || customerApps[0];
-        const activeCustomerName = currentCustApp?.customerName || 'Sarah Jenkins';
+        const customerApps = appointments.filter(a => a.customerName === currentUser?.name);
+        const currentCustApp = appointments.find(a => a.id === selectedCustAppId && a.customerName === currentUser?.name) || customerApps[0];
+        const activeCustomerName = currentUser?.name || 'Sarah Jenkins';
         
         const rawProfile = profiles.find(p => p.customerName === activeCustomerName) || {
           customerName: activeCustomerName,
