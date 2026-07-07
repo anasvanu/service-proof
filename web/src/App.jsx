@@ -620,6 +620,7 @@ export default function App() {
   // Clear simulated database
   const handleResetData = async () => {
     try {
+      setLoading(true);
       const appSnapshot = await getDocs(collection(db, "appointments"));
       const appPromises = appSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(appPromises);
@@ -628,9 +629,89 @@ export default function App() {
       const msgPromises = msgSnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(msgPromises);
 
+      const profSnapshot = await getDocs(collection(db, "profiles"));
+      const profPromises = profSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(profPromises);
+
+      const defaultApps = [
+        {
+          id: "ro-1",
+          customerName: "John Doe",
+          vehicle: "Maruti Swift (Petrol)",
+          fuelType: "Petrol",
+          licensePlate: "DL3C-CA-1920",
+          service: "General Service",
+          date: new Date().toISOString().split('T')[0],
+          time: "11:30 AM",
+          status: "Requested",
+          estimatedCost: 3500,
+          inspection: null,
+          recommendations: [],
+          techSignature: "",
+          qcSignature: "",
+          auditTrail: [{
+            timestamp: new Date().toISOString(),
+            action: "Booking Created",
+            actor: "Customer",
+            details: "Requested General Service at Maruti Suzuki Sector 63 Noida Hub.",
+            hash: "sha256-seed-ro1"
+          }]
+        },
+        {
+          id: "ro-2",
+          customerName: "Sarah Jenkins",
+          vehicle: "Mahindra XUV700 (Diesel)",
+          fuelType: "Diesel",
+          licensePlate: "UP16-BM-2023",
+          service: "General Service",
+          date: new Date().toISOString().split('T')[0],
+          time: "09:00 AM",
+          status: "inspecting",
+          estimatedCost: 3500,
+          techSignature: "",
+          qcSignature: "",
+          assignedMechanic: "Amit Kumar",
+          assignedMechanicId: "m1",
+          dealerName: "Maruti Suzuki Sector 63 Noida Hub",
+          inspection: null,
+          recommendations: [],
+          auditTrail: [
+            {
+              timestamp: new Date().toISOString(),
+              action: "Booking Created",
+              actor: "Customer",
+              details: "Requested General Service.",
+              hash: "sha256-seed-ro2-init"
+            },
+            {
+              timestamp: new Date().toISOString(),
+              action: "Job Card Created",
+              actor: "Advisor",
+              details: "Vehicle checked in. Odometer: 15,200 km, Fuel: 50%. Mechanic Amit Kumar allocated.",
+              hash: "sha256-seed-ro2-jc"
+            }
+          ]
+        }
+      ];
+
+      const defaultMsgs = [
+        { sender: "Advisor", recipient: "Sarah Jenkins", text: "Hi Sarah, your XUV700 is in the bay. Technician is performing the Multi-Point Inspection now.", timestamp: new Date().toISOString() }
+      ];
+
+      for (const app of defaultApps) {
+        await setDoc(doc(db, "appointments", app.id), app);
+      }
+      for (const msg of defaultMsgs) {
+        await setDoc(doc(collection(db, "messages")), msg);
+      }
+
       console.log("Firestore reset complete.");
+      alert("Database has been reset to default sandbox demo values!");
+      window.location.reload();
     } catch (err) {
       console.error("Firestore ResetData error:", err);
+      alert("Error resetting database: " + err.message);
+      setLoading(false);
     }
   };
 
