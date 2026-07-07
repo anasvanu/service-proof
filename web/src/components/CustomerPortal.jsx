@@ -411,6 +411,16 @@ export default function CustomerPortal({
       finalPlate = bookPlate;
     }
 
+    // Check if there is already an active (not Completed/Rejected) booking for this vehicle license plate
+    const hasActiveBooking = allCustomerAppointments.some(a => 
+      a.licensePlate === finalPlate && 
+      !['Completed', 'Rejected'].includes(a.status)
+    );
+    if (hasActiveBooking) {
+      alert(`You already have an active service booking for vehicle ${finalPlate}. Multiple active bookings for the same vehicle are restricted.`);
+      return;
+    }
+
     const selectedDealer = PILOT_DEALERS.find(d => d.id === selectedDealerId);
 
     onScheduleAppointment({
@@ -553,7 +563,7 @@ export default function CustomerPortal({
     const stat = appointment.status;
     if (stat === 'Requested') return 0;
     if (stat === 'Accepted') return 1;
-    if (stat === 'Estimate Pending') return 2;
+    if (stat === 'Estimate Pending' || stat === 'Estimate Advisor Review') return 2;
     if (stat === 'In Progress' || stat === 'Approved') return 3;
     if (stat === 'qc_check') return 4;
     if (stat === 'Completed' || stat === 'ready') return 5;
@@ -900,7 +910,13 @@ export default function CustomerPortal({
                   Service Recommendations & Approvals
                 </h3>
 
-                {appointment.status === 'Estimate Pending' ? (
+                {appointment.status === 'Estimate Advisor Review' ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <Clock className="h-10 w-10 text-rose-500 mx-auto mb-3 animate-pulse" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Compiling Service Estimate...</p>
+                    <p className="text-xs mt-1 text-slate-500">The technician has submitted diagnostic findings. The Service Advisor is currently reviewing recommendations to build your final budget estimate.</p>
+                  </div>
+                ) : appointment.status === 'Estimate Pending' ? (
                   <>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
                       Our certified technician recommends the following maintenance items. Review the proof, choose to Approve/Decline, and provide your digital signature to authorize repairs.
@@ -1297,6 +1313,7 @@ export default function CustomerPortal({
                     </label>
                     <input 
                       type="date" 
+                      min={new Date().toISOString().split('T')[0]}
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
                       required
@@ -1421,6 +1438,28 @@ export default function CustomerPortal({
                             <span className="text-[10px] text-slate-400 font-mono block">Assigned Service Mechanic</span>
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{app.assignedMechanic || 'Amit Kumar'}</span>
                           </div>
+
+                          {/* Checked-in Mandatory Photo Proofs */}
+                          {(app.fuelPhoto || app.batteryPhoto) && (
+                            <div className="col-span-2 grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                              {app.fuelPhoto && (
+                                <div className="space-y-1">
+                                  <span className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400 block text-left">Fuel Level Photo</span>
+                                  <div className="h-20 rounded-lg overflow-hidden border border-slate-250 dark:border-slate-800">
+                                    <img src={app.fuelPhoto} alt="Fuel proof" className="w-full h-full object-cover" />
+                                  </div>
+                                </div>
+                              )}
+                              {app.batteryPhoto && (
+                                <div className="space-y-1">
+                                  <span className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400 block text-left">Battery ID Photo</span>
+                                  <div className="h-20 rounded-lg overflow-hidden border border-slate-250 dark:border-slate-800">
+                                    <img src={app.batteryPhoto} alt="Battery proof" className="w-full h-full object-cover" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Logs Pipeline */}

@@ -11,7 +11,9 @@ import {
   Send,
   Sparkles,
   ShieldCheck,
-  CheckSquare
+  CheckSquare,
+  Camera,
+  Play
 } from 'lucide-react';
 
 const PILOT_DEALERS = [
@@ -29,7 +31,8 @@ export default function AdvisorDashboard({
   onSendMessage, 
   messages,
   mechanics = [],
-  onQcSignOff
+  onQcSignOff,
+  onPublishEstimate
 }) {
   const [activeTab, setActiveTab] = useState('appointments'); // 'appointments' | 'qc' | 'workshop' | 'chat'
   const [chatMessage, setChatMessage] = useState('');
@@ -44,6 +47,8 @@ export default function AdvisorDashboard({
   const [fuelLevel, setFuelLevel] = useState('50%');
   const [selectedMechanicId, setSelectedMechanicId] = useState('');
   const [advisorComments, setAdvisorComments] = useState('');
+  const [fuelPhoto, setFuelPhoto] = useState('');
+  const [batteryPhoto, setBatteryPhoto] = useState('');
 
   // Reject Booking state
   const [rejectRoId, setRejectRoId] = useState('');
@@ -247,6 +252,80 @@ export default function AdvisorDashboard({
                 </div>
               )}
             </div>
+
+            {/* Estimate Review Queue (Awaiting Advisor Release) */}
+            {appointments.filter(a => a.status === 'Estimate Advisor Review').length > 0 && (
+              <div className="glass-card border-rose-500/20 bg-rose-500/5">
+                <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-rose-500 animate-pulse" />
+                  Estimate Review Queue
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                  Technicians have submitted diagnostic recommendations. Review the items, adjust as necessary, and release the estimate to the customer.
+                </p>
+
+                <div className="space-y-4">
+                  {appointments.filter(a => a.status === 'Estimate Advisor Review').map((app) => (
+                    <div key={app.id} className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-4 text-left">
+                      <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-2">
+                        <div>
+                          <span className="font-bold text-sm block text-slate-800 dark:text-slate-200">{app.customerName} • {app.vehicle}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">RO ID: {app.id}</span>
+                        </div>
+                        <span className="text-[10px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-full font-mono uppercase font-bold border border-amber-500/20">
+                          Awaiting Review
+                        </span>
+                      </div>
+
+                      {/* List of recommended items */}
+                      <div className="space-y-2">
+                        <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Technician Recommendations</span>
+                        {(app.recommendations || []).length > 0 ? (
+                          <div className="space-y-2">
+                            {(app.recommendations || []).map((rec, rIdx) => (
+                              <div key={rec.id || rIdx} className="flex justify-between items-center p-2.5 bg-slate-50 dark:bg-slate-850/40 rounded-lg border border-slate-150 dark:border-slate-800 text-xs">
+                                <div>
+                                  <span className="font-bold block text-slate-800 dark:text-slate-250">{rec.service}</span>
+                                  <span className="text-[9px] text-slate-400 block mt-0.5">{rec.details}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-mono font-bold text-rose-500">₹{rec.cost}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = app.recommendations.filter(r => r.id !== rec.id);
+                                      onPublishEstimate(app.id, updated);
+                                    }}
+                                    className="text-red-500 hover:text-red-700 font-bold px-1 text-sm"
+                                    title="Remove Item"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-500">No recommended items.</span>
+                        )}
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onPublishEstimate(app.id, app.recommendations || []);
+                          }}
+                          className="w-full btn-primary py-2.5 justify-center text-xs font-bold uppercase tracking-wider"
+                        >
+                          Approve & Publish to Customer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Active Repair Orders (ROs) */}
             <div className="glass-card">
@@ -592,8 +671,10 @@ export default function AdvisorDashboard({
 
             <form onSubmit={(e) => {
               e.preventDefault();
-              onAcceptBooking(checkInApp.id, odometer, fuelLevel, selectedMechanicId, advisorComments);
+              onAcceptBooking(checkInApp.id, odometer, fuelLevel, selectedMechanicId, advisorComments, fuelPhoto, batteryPhoto);
               setCheckInApp(null);
+              setFuelPhoto('');
+              setBatteryPhoto('');
             }} className="space-y-4 pt-2">
               <div>
                 <label className="block text-xs uppercase tracking-wider font-mono font-bold text-slate-400 mb-1.5">Odometer Reading (km)</label>
@@ -648,9 +729,87 @@ export default function AdvisorDashboard({
                 />
               </div>
 
+              {/* Mandatory Photographic Evidence */}
+              <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-800/20 rounded-xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-xs flex items-center gap-1.5 text-rose-500">
+                  <Camera className="h-4 w-4" /> Mandatory Check-In Proof
+                </h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  To activate the job card, upload clear photographs of the fuel indicator and the vehicle battery (showing battery ID/manufacturing number).
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Fuel Indicator</span>
+                    {fuelPhoto ? (
+                      <div className="relative rounded-lg overflow-hidden border border-emerald-500/30 h-20">
+                        <img src={fuelPhoto} alt="Fuel proof" className="w-full h-full object-cover" />
+                        <button 
+                          type="button" 
+                          onClick={() => setFuelPhoto('')}
+                          className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setFuelPhoto('https://images.unsplash.com/photo-1508974239320-0a029497e820?auto=format&fit=crop&w=300&q=80')}
+                        className="w-full h-20 border-2 border-dashed border-slate-350 dark:border-slate-800 hover:border-rose-500 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:text-rose-500 transition-all text-xs"
+                      >
+                        <Camera className="h-5 w-5 mb-1" />
+                        <span>Upload Fuel</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="block text-[10px] uppercase font-mono font-bold text-slate-400">Battery ID & Number</span>
+                    {batteryPhoto ? (
+                      <div className="relative rounded-lg overflow-hidden border border-emerald-500/30 h-20">
+                        <img src={batteryPhoto} alt="Battery proof" className="w-full h-full object-cover" />
+                        <button 
+                          type="button" 
+                          onClick={() => setBatteryPhoto('')}
+                          className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px]"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setBatteryPhoto('https://images.unsplash.com/photo-1548345680-f5475ea5df84?auto=format&fit=crop&w=300&q=80')}
+                        className="w-full h-20 border-2 border-dashed border-slate-350 dark:border-slate-800 hover:border-rose-500 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:text-rose-500 transition-all text-xs"
+                      >
+                        <Camera className="h-5 w-5 mb-1" />
+                        <span>Upload Battery</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="flex-1 btn-primary justify-center">Accept & Create Job Card</button>
-                <button type="button" onClick={() => setCheckInApp(null)} className="btn-secondary px-4 justify-center">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={!fuelPhoto || !batteryPhoto}
+                  className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                    (!fuelPhoto || !batteryPhoto) 
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-650 cursor-not-allowed'
+                      : 'bg-rose-500 text-white hover:bg-rose-600'
+                  }`}
+                >
+                  Accept & Create Job Card
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setCheckInApp(null); setFuelPhoto(''); setBatteryPhoto(''); }} 
+                  className="btn-secondary px-4 justify-center"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>

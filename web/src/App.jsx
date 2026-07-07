@@ -282,7 +282,7 @@ export default function App() {
   }, [isDark]);
 
   // Advisor Accept Booking & Create Job Card Action
-  const handleAcceptAndCreateJobCard = async (id, odometer, fuelLevel, mechanicId, comments) => {
+  const handleAcceptAndCreateJobCard = async (id, odometer, fuelLevel, mechanicId, comments, fuelPhoto, batteryPhoto) => {
     try {
       const targetApp = appointments.find(a => a.id === id);
       if (!targetApp) return;
@@ -296,10 +296,12 @@ export default function App() {
         assignedMechanic: mechanic.name,
         assignedMechanicId: mechanic.id,
         advisorComments: comments || 'None',
-        jobCardCreated: new Date().toISOString()
+        jobCardCreated: new Date().toISOString(),
+        fuelPhoto: fuelPhoto || '',
+        batteryPhoto: batteryPhoto || ''
       }, { merge: true });
       
-      await logAuditEvent(id, "Job Card Created", "Advisor", `Vehicle checked in. Odometer: ${odometer || '12,000 km'}, Fuel: ${fuelLevel || '50%'}, Mechanic: ${mechanic.name} allocated.`);
+      await logAuditEvent(id, "Job Card Created", "Advisor", `Vehicle checked in. Odometer: ${odometer || '12,000 km'}, Fuel: ${fuelLevel || '50%'}, Mechanic: ${mechanic.name} allocated. Photos attached: Fuel Indicator & Battery ID.`);
       
       await setDoc(doc(collection(db, "messages")), {
         sender: 'Advisor',
@@ -336,7 +338,7 @@ export default function App() {
   const handleStartInspection = async (id) => {
     try {
       await setDoc(doc(db, "appointments", id), {
-        status: 'Accepted'
+        status: 'inspecting'
       }, { merge: true });
       await logAuditEvent(id, "Inspection Started", "Technician", "Multi-point inspection and diagnostics check initiated in bay.");
     } catch (err) {
@@ -354,15 +356,15 @@ export default function App() {
       const recommendationsCost = recommendations.reduce((acc, r) => acc + r.cost, 0);
 
       await setDoc(doc(db, "appointments", id), {
-        status: 'Estimate Pending',
+        status: 'Estimate Advisor Review',
         inspection: report,
         recommendations: recommendations,
         estimatedCost: baseCost + recommendationsCost,
         techSignature: techSignatureName || "Tech #402"
       }, { merge: true });
 
-      await logAuditEvent(id, "Diagnostics Submitted", "Technician", `MPI diagnostics completed. Created repair estimate with ${recommendations.length} items.`);
-      await sendNotification(targetApp.customerName, "Repair Estimate Ready", `Diagnostics completed for ${targetApp.vehicle}. Please review and approve the repair estimate.`);
+      await logAuditEvent(id, "Diagnostics Submitted", "Technician", `MPI diagnostics completed. Sent estimate to Service Advisor for review.`);
+      await sendNotification(targetApp.customerName, "Diagnostics Completed", `Diagnostics completed for ${targetApp.vehicle}. Our Service Advisor is currently reviewing the recommendations.`);
       
       await setDoc(doc(collection(db, "messages")), {
         sender: 'Advisor',
@@ -486,6 +488,28 @@ export default function App() {
       await sendNotification(targetApp.customerName, "Repairs In Progress", `Work has officially started on your ${targetApp.vehicle}.`);
     } catch (err) {
       console.error("Firestore StartRepairs error:", err);
+    }
+  };
+
+  // Advisor Publish Estimate to Customer
+  const handlePublishEstimate = async (id, finalRecs) => {
+    try {
+      const targetApp = appointments.find(a => a.id === id);
+      if (!targetApp) return;
+
+      const baseCost = targetApp.service === 'General Service' ? 3500 : 2000;
+      const recsCost = finalRecs.reduce((acc, r) => acc + r.cost, 0);
+
+      await setDoc(doc(db, "appointments", id), {
+        status: 'Estimate Pending',
+        recommendations: finalRecs,
+        estimatedCost: baseCost + recsCost
+      }, { merge: true });
+
+      await logAuditEvent(id, "Estimate Released", "Advisor", `Service Advisor reviewed technician recommendations and released estimate to customer.`);
+      await sendNotification(targetApp.customerName, "Repair Estimate Ready", `Diagnostics report and repair estimates are ready for your review and approval.`);
+    } catch (err) {
+      console.error("Firestore PublishEstimate error:", err);
     }
   };
 
@@ -677,6 +701,7 @@ export default function App() {
             messages={advisorMessages}
             mechanics={MOCK_MECHANICS}
             onQcSignOff={handleQcSignOff}
+            onPublishEstimate={handlePublishEstimate}
           />
         );
       case 'technician':
