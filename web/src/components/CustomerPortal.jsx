@@ -756,7 +756,12 @@ export default function CustomerPortal({
 
                 {/* Progress Pipeline */}
                 <div className="relative flex flex-col md:flex-row justify-between items-center gap-4 md:gap-2 mb-8 mt-4">
-                  <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 dark:bg-slate-800 -translate-y-1/2 hidden md:block z-0"></div>
+                  <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 dark:bg-slate-800 -translate-y-1/2 hidden md:block z-0">
+                    <div 
+                      className="bg-rose-500 h-full transition-all duration-550 ease-in-out"
+                      style={{ width: `${(getCurrentStepIndex() / (steps.length - 1)) * 100}%` }}
+                    />
+                  </div>
                   
                   {steps.map((step, idx) => {
                     const currentIdx = getCurrentStepIndex();
@@ -804,7 +809,7 @@ export default function CustomerPortal({
               </div>
 
               {/* Proof of Work Execution Pack */}
-              {appointment.status === 'ready' && (
+              {(appointment.status === 'qc_check' || appointment.status === 'Completed') && (
                 <div className="glass-card">
                   <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <FileCheck className="h-5 w-5 text-rose-500" />

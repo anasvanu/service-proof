@@ -354,12 +354,17 @@ export default function AdvisorDashboard({
                           </td>
                           <td className="py-3.5">
                             <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              app.status === 'checked_in' ? 'bg-blue-100 dark:bg-blue-950/40 text-blue-600' :
-                              app.status === 'inspecting' ? 'bg-amber-100 dark:bg-amber-950/40 text-amber-600' :
-                              app.status === 'in_progress' ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600' :
-                              'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600'
+                              app.status === 'Accepted' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
+                              app.status === 'inspecting' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                              app.status === 'Estimate Advisor Review' ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20 animate-pulse' :
+                              app.status === 'Estimate Pending' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                              app.status === 'Approved' ? 'bg-purple-500/10 text-purple-500 border border-purple-500/20' :
+                              app.status === 'In Progress' ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' :
+                              app.status === 'qc_check' ? 'bg-pink-500/10 text-pink-500 border border-pink-500/20' :
+                              app.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              'bg-slate-100 dark:bg-slate-800 text-slate-450'
                             }`}>
-                              {app.status.replace('_', ' ')}
+                              {app.status}
                             </span>
                           </td>
                           <td className="py-3.5">
